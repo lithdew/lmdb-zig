@@ -1,4 +1,5 @@
 const std = @import("std");
+const c = @cImport(@cInclude("lmdb.h"));
 
 const os = std.os;
 const fs = std.fs;
@@ -10,8 +11,6 @@ const testing = std.testing;
 
 const panic = debug.panic;
 const assert = debug.assert;
-
-usingnamespace @cImport(@cInclude("lmdb.h"));
 
 pub const Environment = packed struct {
     pub const Statistics = struct {
@@ -34,10 +33,10 @@ pub const Environment = packed struct {
 
     const Self = @This();
 
-    inner: ?*MDB_env,
+    inner: ?*c.MDB_env,
 
     pub const OpenFlags = struct {
-        mode: mdb_mode_t = 0o664,
+        mode: c.mdb_mode_t = 0o664,
         map_size: ?usize = null,
         max_num_readers: ?usize = null,
         max_num_dbs: ?usize = null,
@@ -57,36 +56,36 @@ pub const Environment = packed struct {
 
         pub inline fn into(self: Self.OpenFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.fix_mapped_address) flags |= MDB_FIXEDMAP;
-            if (self.no_sub_directory) flags |= MDB_NOSUBDIR;
-            if (self.read_only) flags |= MDB_RDONLY;
-            if (self.use_writable_memory_map) flags |= MDB_WRITEMAP;
-            if (self.dont_sync_metadata) flags |= MDB_NOMETASYNC;
-            if (self.dont_sync) flags |= MDB_NOSYNC;
-            if (self.flush_asynchronously) flags |= MDB_MAPASYNC;
-            if (self.disable_thread_local_storage) flags |= MDB_NOTLS;
-            if (self.disable_locks) flags |= MDB_NOLOCK;
-            if (self.disable_readahead) flags |= MDB_NORDAHEAD;
-            if (self.disable_memory_initialization) flags |= MDB_NOMEMINIT;
-            if (self.open_previous_snapshot) flags |= MDB_PREVSNAPSHOT;
+            if (self.fix_mapped_address) flags |= c.MDB_FIXEDMAP;
+            if (self.no_sub_directory) flags |= c.MDB_NOSUBDIR;
+            if (self.read_only) flags |= c.MDB_RDONLY;
+            if (self.use_writable_memory_map) flags |= c.MDB_WRITEMAP;
+            if (self.dont_sync_metadata) flags |= c.MDB_NOMETASYNC;
+            if (self.dont_sync) flags |= c.MDB_NOSYNC;
+            if (self.flush_asynchronously) flags |= c.MDB_MAPASYNC;
+            if (self.disable_thread_local_storage) flags |= c.MDB_NOTLS;
+            if (self.disable_locks) flags |= c.MDB_NOLOCK;
+            if (self.disable_readahead) flags |= c.MDB_NORDAHEAD;
+            if (self.disable_memory_initialization) flags |= c.MDB_NOMEMINIT;
+            if (self.open_previous_snapshot) flags |= c.MDB_PREVSNAPSHOT;
             return flags;
         }
     };
 
     pub inline fn init(env_path: []const u8, flags: Self.OpenFlags) !Self {
-        var inner: ?*MDB_env = null;
+        var inner: ?*c.MDB_env = null;
 
-        try call(mdb_env_create, .{&inner});
-        errdefer call(mdb_env_close, .{inner});
+        try call(c.mdb_env_create, .{&inner});
+        errdefer call(c.mdb_env_close, .{inner});
 
         if (flags.map_size) |map_size| {
-            try call(mdb_env_set_mapsize, .{ inner, map_size });
+            try call(c.mdb_env_set_mapsize, .{ inner, map_size });
         }
         if (flags.max_num_readers) |max_num_readers| {
-            try call(mdb_env_set_maxreaders, .{ inner, @intCast(c_uint, max_num_readers) });
+            try call(c.mdb_env_set_maxreaders, .{ inner, @intCast(c_uint, max_num_readers) });
         }
         if (flags.max_num_dbs) |max_num_dbs| {
-            try call(mdb_env_set_maxdbs, .{ inner, @intCast(c_uint, max_num_dbs) });
+            try call(c.mdb_env_set_maxdbs, .{ inner, @intCast(c_uint, max_num_dbs) });
         }
 
         if (!mem.endsWith(u8, env_path, &[_]u8{0})) {
@@ -96,16 +95,16 @@ pub const Environment = packed struct {
             mem.copy(u8, &fixed_path, env_path);
             fixed_path[env_path.len] = 0;
 
-            try call(mdb_env_open, .{ inner, fixed_path[0 .. env_path.len + 1].ptr, flags.into(), flags.mode });
+            try call(c.mdb_env_open, .{ inner, fixed_path[0 .. env_path.len + 1].ptr, flags.into(), flags.mode });
         } else {
-            try call(mdb_env_open, .{ inner, env_path.ptr, flags.into(), flags.mode });
+            try call(c.mdb_env_open, .{ inner, env_path.ptr, flags.into(), flags.mode });
         }
 
         return Self{ .inner = inner };
     }
 
     pub inline fn deinit(self: Self) void {
-        call(mdb_env_close, .{self.inner});
+        call(c.mdb_env_close, .{self.inner});
     }
 
     pub const CopyFlags = packed struct {
@@ -113,7 +112,7 @@ pub const Environment = packed struct {
 
         pub inline fn into(self: Self.CopyFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.compact) flags |= MDB_CP_COMPACT;
+            if (self.compact) flags |= c.MDB_CP_COMPACT;
             return flags;
         }
     };
@@ -126,24 +125,24 @@ pub const Environment = packed struct {
             mem.copy(u8, &fixed_path, backup_path);
             fixed_path[backup_path.len] = 0;
 
-            try call(mdb_env_copy2, .{ self.inner, fixed_path[0 .. backup_path.len + 1].ptr, flags.into() });
+            try call(c.mdb_env_copy2, .{ self.inner, fixed_path[0 .. backup_path.len + 1].ptr, flags.into() });
         } else {
-            try call(mdb_env_copy2, .{ self.inner, backup_path.ptr, flags.into() });
+            try call(c.mdb_env_copy2, .{ self.inner, backup_path.ptr, flags.into() });
         }
     }
 
     /// The file descriptor provided must already be opened with write access.
     pub inline fn pipeTo(self: Self, fd: os.fd_t, flags: CopyFlags) !void {
-        try call(mdb_env_copyfd2, .{ self.inner, fd, flags.into() });
+        try call(c.mdb_env_copyfd2, .{ self.inner, fd, flags.into() });
     }
 
     pub inline fn getMaxKeySize(self: Self) usize {
-        return @intCast(usize, mdb_env_get_maxkeysize(self.inner));
+        return @intCast(usize, c.mdb_env_get_maxkeysize(self.inner));
     }
 
     pub inline fn getMaxNumReaders(self: Self) usize {
         var max_num_readers: c_uint = 0;
-        call(mdb_env_get_maxreaders, .{ self.inner, &max_num_readers }) catch |err| {
+        call(c.mdb_env_get_maxreaders, .{ self.inner, &max_num_readers }) catch |err| {
             panic("Environment.getMaxNumReaders(): {}", .{err});
         };
         return @intCast(usize, max_num_readers);
@@ -151,7 +150,7 @@ pub const Environment = packed struct {
 
     /// May only be called if there are no transactions active at all.
     pub inline fn setMapSize(self: Self, map_size: ?usize) !void {
-        try call(mdb_env_set_mapsize, .{ self.inner, if (map_size) |size| size else 0 });
+        try call(c.mdb_env_set_mapsize, .{ self.inner, if (map_size) |size| size else 0 });
     }
 
     pub const Flags = struct {
@@ -170,42 +169,42 @@ pub const Environment = packed struct {
 
         pub inline fn from(flags: c_uint) Flags {
             return Flags{
-                .fix_mapped_address = flags & MDB_FIXEDMAP != 0,
-                .no_sub_directory = flags & MDB_NOSUBDIR != 0,
-                .read_only = flags & MDB_RDONLY != 0,
-                .use_writable_memory_map = flags & MDB_WRITEMAP != 0,
-                .dont_sync_metadata = flags & MDB_NOMETASYNC != 0,
-                .dont_sync = flags & MDB_NOSYNC != 0,
-                .flush_asynchronously = flags & MDB_MAPASYNC != 0,
-                .disable_thread_local_storage = flags & MDB_NOTLS != 0,
-                .disable_locks = flags & MDB_NOLOCK != 0,
-                .disable_readahead = flags & MDB_NORDAHEAD != 0,
-                .disable_memory_initialization = flags & MDB_NOMEMINIT != 0,
-                .open_previous_snapshot = flags & MDB_PREVSNAPSHOT != 0,
+                .fix_mapped_address = flags & c.MDB_FIXEDMAP != 0,
+                .no_sub_directory = flags & c.MDB_NOSUBDIR != 0,
+                .read_only = flags & c.MDB_RDONLY != 0,
+                .use_writable_memory_map = flags & c.MDB_WRITEMAP != 0,
+                .dont_sync_metadata = flags & c.MDB_NOMETASYNC != 0,
+                .dont_sync = flags & c.MDB_NOSYNC != 0,
+                .flush_asynchronously = flags & c.MDB_MAPASYNC != 0,
+                .disable_thread_local_storage = flags & c.MDB_NOTLS != 0,
+                .disable_locks = flags & c.MDB_NOLOCK != 0,
+                .disable_readahead = flags & c.MDB_NORDAHEAD != 0,
+                .disable_memory_initialization = flags & c.MDB_NOMEMINIT != 0,
+                .open_previous_snapshot = flags & c.MDB_PREVSNAPSHOT != 0,
             };
         }
 
         pub inline fn into(self: Self.Flags) c_uint {
             var flags: c_uint = 0;
-            if (self.fix_mapped_address) flags |= MDB_FIXEDMAP;
-            if (self.no_sub_directory) flags |= MDB_NOSUBDIR;
-            if (self.read_only) flags |= MDB_RDONLY;
-            if (self.use_writable_memory_map) flags |= MDB_WRITEMAP;
-            if (self.dont_sync_metadata) flags |= MDB_NOMETASYNC;
-            if (self.dont_sync) flags |= MDB_NOSYNC;
-            if (self.flush_asynchronously) flags |= MDB_MAPASYNC;
-            if (self.disable_thread_local_storage) flags |= MDB_NOTLS;
-            if (self.disable_locks) flags |= MDB_NOLOCK;
-            if (self.disable_readahead) flags |= MDB_NORDAHEAD;
-            if (self.disable_memory_initialization) flags |= MDB_NOMEMINIT;
-            if (self.open_previous_snapshot) flags |= MDB_PREVSNAPSHOT;
+            if (self.fix_mapped_address) flags |= c.MDB_FIXEDMAP;
+            if (self.no_sub_directory) flags |= c.MDB_NOSUBDIR;
+            if (self.read_only) flags |= c.MDB_RDONLY;
+            if (self.use_writable_memory_map) flags |= c.MDB_WRITEMAP;
+            if (self.dont_sync_metadata) flags |= c.MDB_NOMETASYNC;
+            if (self.dont_sync) flags |= c.MDB_NOSYNC;
+            if (self.flush_asynchronously) flags |= c.MDB_MAPASYNC;
+            if (self.disable_thread_local_storage) flags |= c.MDB_NOTLS;
+            if (self.disable_locks) flags |= c.MDB_NOLOCK;
+            if (self.disable_readahead) flags |= c.MDB_NORDAHEAD;
+            if (self.disable_memory_initialization) flags |= c.MDB_NOMEMINIT;
+            if (self.open_previous_snapshot) flags |= c.MDB_PREVSNAPSHOT;
             return flags;
         }
     };
 
     pub inline fn getFlags(self: Self) Flags {
         var inner: c_uint = undefined;
-        call(mdb_env_get_flags, .{ self.inner, &inner }) catch |err| {
+        call(c.mdb_env_get_flags, .{ self.inner, &inner }) catch |err| {
             panic("Environment.getFlags(): {}", .{err});
         };
         return Flags.from(inner);
@@ -219,29 +218,29 @@ pub const Environment = packed struct {
 
         pub inline fn into(self: Self.MutableFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.dont_sync_metadata) flags |= MDB_NOMETASYNC;
-            if (self.dont_sync) flags |= MDB_NOSYNC;
-            if (self.flush_asynchronously) flags |= MDB_MAPASYNC;
-            if (self.disable_memory_initialization) flags |= MDB_NOMEMINIT;
+            if (self.dont_sync_metadata) flags |= c.MDB_NOMETASYNC;
+            if (self.dont_sync) flags |= c.MDB_NOSYNC;
+            if (self.flush_asynchronously) flags |= c.MDB_MAPASYNC;
+            if (self.disable_memory_initialization) flags |= c.MDB_NOMEMINIT;
             return flags;
         }
     };
 
     pub inline fn enableFlags(self: Self, flags: MutableFlags) void {
-        call(mdb_env_set_flags, .{ self.inner, flags.into(), 1 }) catch |err| {
+        call(c.mdb_env_set_flags, .{ self.inner, flags.into(), 1 }) catch |err| {
             panic("Environment.enableFlags(): {}", .{err});
         };
     }
 
     pub inline fn disableFlags(self: Self, flags: MutableFlags) void {
-        call(mdb_env_set_flags, .{ self.inner, flags.into(), 0 }) catch |err| {
+        call(c.mdb_env_set_flags, .{ self.inner, flags.into(), 0 }) catch |err| {
             panic("Environment.disableFlags(): {}", .{err});
         };
     }
 
     pub inline fn path(self: Self) []const u8 {
         var env_path: [:0]const u8 = undefined;
-        call(mdb_env_get_path, .{ self.inner, @ptrCast([*c][*c]const u8, &env_path.ptr) }) catch |err| {
+        call(c.mdb_env_get_path, .{ self.inner, @ptrCast([*c][*c]const u8, &env_path.ptr) }) catch |err| {
             panic("Environment.path(): {}", .{err});
         };
         env_path.len = mem.indexOfSentinel(u8, 0, env_path.ptr);
@@ -249,8 +248,8 @@ pub const Environment = packed struct {
     }
 
     pub inline fn stat(self: Self) Statistics {
-        var inner: MDB_stat = undefined;
-        call(mdb_env_stat, .{ self.inner, &inner }) catch |err| {
+        var inner: c.MDB_stat = undefined;
+        call(c.mdb_env_stat, .{ self.inner, &inner }) catch |err| {
             panic("Environment.stat(): {}", .{err});
         };
         return Statistics{
@@ -265,15 +264,15 @@ pub const Environment = packed struct {
 
     pub inline fn fd(self: Self) os.fd_t {
         var inner: os.fd_t = undefined;
-        call(mdb_env_get_fd, .{ self.inner, &inner }) catch |err| {
+        call(c.mdb_env_get_fd, .{ self.inner, &inner }) catch |err| {
             panic("Environment.fd(): {}", .{err});
         };
         return inner;
     }
 
     pub inline fn info(self: Self) Info {
-        var inner: MDB_envinfo = undefined;
-        call(mdb_env_info, .{ self.inner, &inner }) catch |err| {
+        var inner: c.MDB_envinfo = undefined;
+        call(c.mdb_env_info, .{ self.inner, &inner }) catch |err| {
             panic("Environment.info(): {}", .{err});
         };
         return Info{
@@ -287,21 +286,21 @@ pub const Environment = packed struct {
     }
 
     pub inline fn begin(self: Self, flags: Transaction.Flags) !Transaction {
-        var inner: ?*MDB_txn = null;
+        var inner: ?*c.MDB_txn = null;
         const maybe_parent = if (flags.parent) |parent| parent.inner else null;
-        try call(mdb_txn_begin, .{ self.inner, maybe_parent, flags.into(), &inner });
+        try call(c.mdb_txn_begin, .{ self.inner, maybe_parent, flags.into(), &inner });
         return Transaction{ .inner = inner };
     }
 
     pub inline fn sync(self: Self, force: bool) !void {
-        try call(mdb_env_sync, .{ self.inner, @as(c_int, if (force) 1 else 0) });
+        try call(c.mdb_env_sync, .{ self.inner, @as(c_int, if (force) 1 else 0) });
     }
 
     /// Purge stale read transactions taking up disk space that may exist after
     /// an unexpected program crash. Expected to be called periodically.
     pub inline fn purge(self: Self) !usize {
         var count: c_int = undefined;
-        try call(mdb_reader_check, .{ self.inner, &count });
+        try call(c.mdb_reader_check, .{ self.inner, &count });
         return @intCast(usize, count);
     }
 };
@@ -317,12 +316,12 @@ pub const Database = struct {
 
         pub inline fn into(self: Self.OpenFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.compare_keys_in_reverse_order) flags |= MDB_REVERSEKEY;
-            if (self.allow_duplicate_keys) flags |= MDB_DUPSORT;
-            if (self.keys_are_integers) flags |= MDB_INTEGERKEY;
-            if (self.duplicate_entries_are_fixed_size) flags |= MDB_DUPFIXED;
-            if (self.duplicate_keys_are_integers) flags |= MDB_INTEGERDUP;
-            if (self.compare_duplicate_keys_in_reverse_order) flags |= MDB_REVERSEDUP;
+            if (self.compare_keys_in_reverse_order) flags |= c.MDB_REVERSEKEY;
+            if (self.allow_duplicate_keys) flags |= c.MDB_DUPSORT;
+            if (self.keys_are_integers) flags |= c.MDB_INTEGERKEY;
+            if (self.duplicate_entries_are_fixed_size) flags |= c.MDB_DUPFIXED;
+            if (self.duplicate_keys_are_integers) flags |= c.MDB_INTEGERDUP;
+            if (self.compare_duplicate_keys_in_reverse_order) flags |= c.MDB_REVERSEDUP;
             return flags;
         }
     };
@@ -338,23 +337,23 @@ pub const Database = struct {
 
         pub inline fn into(self: Self.UseFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.compare_keys_in_reverse_order) flags |= MDB_REVERSEKEY;
-            if (self.allow_duplicate_keys) flags |= MDB_DUPSORT;
-            if (self.keys_are_integers) flags |= MDB_INTEGERKEY;
-            if (self.duplicate_entries_are_fixed_size) flags |= MDB_DUPFIXED;
-            if (self.duplicate_keys_are_integers) flags |= MDB_INTEGERDUP;
-            if (self.compare_duplicate_keys_in_reverse_order) flags |= MDB_REVERSEDUP;
-            if (self.create_if_not_exists) flags |= MDB_CREATE;
+            if (self.compare_keys_in_reverse_order) flags |= c.MDB_REVERSEKEY;
+            if (self.allow_duplicate_keys) flags |= c.MDB_DUPSORT;
+            if (self.keys_are_integers) flags |= c.MDB_INTEGERKEY;
+            if (self.duplicate_entries_are_fixed_size) flags |= c.MDB_DUPFIXED;
+            if (self.duplicate_keys_are_integers) flags |= c.MDB_INTEGERDUP;
+            if (self.compare_duplicate_keys_in_reverse_order) flags |= c.MDB_REVERSEDUP;
+            if (self.create_if_not_exists) flags |= c.MDB_CREATE;
             return flags;
         }
     };
 
     const Self = @This();
 
-    inner: MDB_dbi,
+    inner: c.MDB_dbi,
 
     pub inline fn close(self: Self, env: Environment) void {
-        call(mdb_dbi_close, .{ env.inner, self.inner });
+        call(c.mdb_dbi_close, .{ env.inner, self.inner });
     }
 };
 
@@ -367,42 +366,42 @@ pub const Transaction = packed struct {
 
         pub inline fn into(self: Self.Flags) c_uint {
             var flags: c_uint = 0;
-            if (self.read_only) flags |= MDB_RDONLY;
-            if (self.dont_sync) flags |= MDB_NOSYNC;
-            if (self.dont_sync_metadata) flags |= MDB_NOMETASYNC;
+            if (self.read_only) flags |= c.MDB_RDONLY;
+            if (self.dont_sync) flags |= c.MDB_NOSYNC;
+            if (self.dont_sync_metadata) flags |= c.MDB_NOMETASYNC;
             return flags;
         }
     };
 
     const Self = @This();
 
-    inner: ?*MDB_txn,
+    inner: ?*c.MDB_txn,
 
     pub inline fn id(self: Self) usize {
-        return @intCast(usize, mdb_txn_id(self.inner));
+        return @intCast(usize, c.mdb_txn_id(self.inner));
     }
 
     pub inline fn open(self: Self, flags: Database.OpenFlags) !Database {
-        var inner: MDB_dbi = 0;
-        try call(mdb_dbi_open, .{ self.inner, null, flags.into(), &inner });
+        var inner: c.MDB_dbi = 0;
+        try call(c.mdb_dbi_open, .{ self.inner, null, flags.into(), &inner });
         return Database{ .inner = inner };
     }
 
     pub inline fn use(self: Self, name: []const u8, flags: Database.UseFlags) !Database {
-        var inner: MDB_dbi = 0;
-        try call(mdb_dbi_open, .{ self.inner, name.ptr, flags.into(), &inner });
+        var inner: c.MDB_dbi = 0;
+        try call(c.mdb_dbi_open, .{ self.inner, name.ptr, flags.into(), &inner });
         return Database{ .inner = inner };
     }
 
     pub inline fn cursor(self: Self, db: Database) !Cursor {
-        var inner: ?*MDB_cursor = undefined;
-        try call(mdb_cursor_open, .{ self.inner, db.inner, &inner });
+        var inner: ?*c.MDB_cursor = undefined;
+        try call(c.mdb_cursor_open, .{ self.inner, db.inner, &inner });
         return Cursor{ .inner = inner };
     }
 
     pub inline fn setKeyOrder(self: Self, db: Database, comptime order: fn (a: []const u8, b: []const u8) math.Order) !void {
         const S = struct {
-            inline fn cmp(a: ?*const MDB_val, b: ?*const MDB_val) callconv(.C) c_int {
+            inline fn cmp(a: ?*const c.MDB_val, b: ?*const c.MDB_val) callconv(.C) c_int {
                 const slice_a = @ptrCast([*]const u8, a.?.mv_data)[0..a.?.mv_size];
                 const slice_b = @ptrCast([*]const u8, b.?.mv_data)[0..b.?.mv_size];
                 return switch (order(slice_a, slice_b)) {
@@ -412,12 +411,12 @@ pub const Transaction = packed struct {
                 };
             }
         };
-        try call(mdb_set_compare, .{ self.inner, db.inner, S.cmp });
+        try call(c.mdb_set_compare, .{ self.inner, db.inner, S.cmp });
     }
 
     pub inline fn setItemOrder(self: Self, db: Database, comptime order: fn (a: []const u8, b: []const u8) math.Order) !void {
         const S = struct {
-            inline fn cmp(a: ?*const MDB_val, b: ?*const MDB_val) callconv(.C) c_int {
+            inline fn cmp(a: ?*const c.MDB_val, b: ?*const c.MDB_val) callconv(.C) c_int {
                 const slice_a = @ptrCast([*]const u8, a.?.mv_data)[0..a.?.mv_size];
                 const slice_b = @ptrCast([*]const u8, b.?.mv_data)[0..b.?.mv_size];
                 return switch (order(slice_a, slice_b)) {
@@ -427,13 +426,13 @@ pub const Transaction = packed struct {
                 };
             }
         };
-        try call(mdb_set_dupsort, .{ self.inner, db.inner, S.cmp });
+        try call(c.mdb_set_dupsort, .{ self.inner, db.inner, S.cmp });
     }
 
     pub inline fn get(self: Self, db: Database, key: []const u8) ![]const u8 {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v: MDB_val = undefined;
-        try call(mdb_get, .{ self.inner, db.inner, k, &v });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v: c.MDB_val = undefined;
+        try call(c.mdb_get, .{ self.inner, db.inner, k, &v });
 
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
@@ -446,10 +445,10 @@ pub const Transaction = packed struct {
 
         pub inline fn into(self: PutFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.dont_overwrite_key) flags |= MDB_NOOVERWRITE;
-            if (self.dont_overwrite_item) flags |= MDB_NODUPDATA;
-            if (self.data_already_sorted) flags |= MDB_APPEND;
-            if (self.set_already_sorted) flags |= MDB_APPENDDUP;
+            if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
+            if (self.dont_overwrite_item) flags |= c.MDB_NODUPDATA;
+            if (self.data_already_sorted) flags |= c.MDB_APPEND;
+            if (self.set_already_sorted) flags |= c.MDB_APPENDDUP;
             return flags;
         }
     };
@@ -460,16 +459,16 @@ pub const Transaction = packed struct {
     }
 
     pub inline fn put(self: Self, db: Database, key: []const u8, val: []const u8, flags: PutFlags) !void {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
-        try call(mdb_put, .{ self.inner, db.inner, k, v, flags.into() });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        try call(c.mdb_put, .{ self.inner, db.inner, k, v, flags.into() });
     }
 
     pub inline fn getOrPut(self: Self, db: Database, key: []const u8, val: []const u8) !?[]const u8 {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
 
-        call(mdb_put, .{ self.inner, db.inner, k, v, MDB_NOOVERWRITE }) catch |err| switch (err) {
+        call(c.mdb_put, .{ self.inner, db.inner, k, v, c.MDB_NOOVERWRITE }) catch |err| switch (err) {
             error.AlreadyExists => return @ptrCast([*]u8, v.mv_data)[0..v.mv_size],
             else => return err,
         };
@@ -482,9 +481,9 @@ pub const Transaction = packed struct {
         data_already_sorted: bool = false,
 
         pub inline fn into(self: ReserveFlags) c_uint {
-            var flags: c_uint = MDB_RESERVE;
-            if (self.dont_overwrite_key) flags |= MDB_NOOVERWRITE;
-            if (self.data_already_sorted) flags |= MDB_APPEND;
+            var flags: c_uint = c.MDB_RESERVE;
+            if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
+            if (self.data_already_sorted) flags |= c.MDB_APPEND;
             return flags;
         }
     };
@@ -496,10 +495,10 @@ pub const Transaction = packed struct {
 
     /// May not be used with databases supporting duplicate keys.
     pub inline fn reserve(self: Self, db: Database, key: []const u8, val_len: usize, flags: ReserveFlags) !ReserveResult {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val_len, .mv_data = null };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val_len, .mv_data = null };
 
-        call(mdb_put, .{ self.inner, db.inner, k, v, flags.into() }) catch |err| switch (err) {
+        call(c.mdb_put, .{ self.inner, db.inner, k, v, flags.into() }) catch |err| switch (err) {
             error.AlreadyExists => return ReserveResult{
                 .found_existing = @ptrCast([*]const u8, v.mv_data)[0..v.mv_size],
             },
@@ -512,35 +511,35 @@ pub const Transaction = packed struct {
     }
 
     pub inline fn del(self: Self, db: Database, key: []const u8, op: union(enum) { key: void, item: []const u8 }) !void {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v: ?*MDB_val = switch (op) {
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v: ?*c.MDB_val = switch (op) {
             .key => null,
-            .item => |item| &MDB_val{
+            .item => |item| &c.MDB_val{
                 .mv_size = item.len,
                 .mv_data = @intToPtr(?*c_void, @ptrToInt(item.ptr)),
             },
         };
-        try call(mdb_del, .{ self.inner, db.inner, k, v });
+        try call(c.mdb_del, .{ self.inner, db.inner, k, v });
     }
 
     pub inline fn drop(self: Self, db: Database, method: enum(c_int) { empty = 0, delete = 1 }) !void {
-        try call(mdb_drop, .{ self.inner, db.inner, @enumToInt(method) });
+        try call(c.mdb_drop, .{ self.inner, db.inner, @enumToInt(method) });
     }
 
     pub inline fn deinit(self: Self) void {
-        call(mdb_txn_abort, .{self.inner});
+        call(c.mdb_txn_abort, .{self.inner});
     }
 
     pub inline fn commit(self: Self) !void {
-        try call(mdb_txn_commit, .{self.inner});
+        try call(c.mdb_txn_commit, .{self.inner});
     }
 
     pub inline fn renew(self: Self) !void {
-        try call(mdb_txn_renew, .{self.inner});
+        try call(c.mdb_txn_renew, .{self.inner});
     }
 
     pub inline fn reset(self: Self) !void {
-        try call(mdb_txn_reset, .{self.inner});
+        try call(c.mdb_txn_reset, .{self.inner});
     }
 };
 
@@ -559,28 +558,28 @@ pub const Cursor = packed struct {
 
     const Self = @This();
 
-    inner: ?*MDB_cursor,
+    inner: ?*c.MDB_cursor,
 
     pub inline fn deinit(self: Self) void {
-        call(mdb_cursor_close, .{self.inner});
+        call(c.mdb_cursor_close, .{self.inner});
     }
 
     pub inline fn tx(self: Self) Transaction {
-        return Transaction{ .inner = mdb_cursor_txn(self.inner) };
+        return Transaction{ .inner = c.mdb_cursor_txn(self.inner) };
     }
 
     pub inline fn db(self: Self) Database {
-        return Database{ .inner = mdb_cursor_dbi(self.inner) };
+        return Database{ .inner = c.mdb_cursor_dbi(self.inner) };
     }
 
     pub inline fn renew(self: Self, parent: Transaction) !void {
-        try call(mdb_cursor_renew, .{ parent.inner, self.inner });
+        try call(c.mdb_cursor_renew, .{ parent.inner, self.inner });
     }
 
     /// May only be used with databaes supporting duplicate keys.
     pub inline fn count(self: Self) usize {
-        var inner: mdb_size_t = undefined;
-        call(mdb_cursor_count, .{ self.inner, &inner }) catch |err| {
+        var inner: c.mdb_size_t = undefined;
+        call(c.mdb_cursor_count, .{ self.inner, &inner }) catch |err| {
             panic("cursor is initialized, or database does not support duplicate keys: {}", .{err});
         };
         return @intCast(usize, inner);
@@ -592,16 +591,16 @@ pub const Cursor = packed struct {
     }
 
     pub fn updateInPlace(self: Self, current_key: []const u8, new_val: []const u8) !void {
-        var k = &MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(current_key.ptr)) };
-        var v = &MDB_val{ .mv_size = new_val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(new_val.ptr)) };
-        try call(mdb_cursor_put, .{ self.inner, k, v, MDB_CURRENT });
+        var k = &c.MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(current_key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = new_val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(new_val.ptr)) };
+        try call(c.mdb_cursor_put, .{ self.inner, k, v, c.MDB_CURRENT });
     }
 
     /// May not be used with databases supporting duplicate keys.
     pub fn reserveInPlace(self: Self, current_key: []const u8, new_val_len: usize) ![]u8 {
-        var k = &MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(current_key.ptr)) };
-        var v = &MDB_val{ .mv_size = new_val_len, .mv_data = null };
-        try call(mdb_cursor_put, .{ self.inner, k, v, MDB_CURRENT | MDB_RESERVE });
+        var k = &c.MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(current_key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = new_val_len, .mv_data = null };
+        try call(c.mdb_cursor_put, .{ self.inner, k, v, c.MDB_CURRENT | c.MDB_RESERVE });
         return @ptrCast([*]u8, v.mv_data)[0..v.mv_size];
     }
 
@@ -613,10 +612,10 @@ pub const Cursor = packed struct {
 
         pub inline fn into(self: PutFlags) c_uint {
             var flags: c_uint = 0;
-            if (self.dont_overwrite_key) flags |= MDB_NOOVERWRITE;
-            if (self.dont_overwrite_item) flags |= MDB_NODUPDATA;
-            if (self.data_already_sorted) flags |= MDB_APPEND;
-            if (self.set_already_sorted) flags |= MDB_APPENDDUP;
+            if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
+            if (self.dont_overwrite_item) flags |= c.MDB_NODUPDATA;
+            if (self.data_already_sorted) flags |= c.MDB_APPEND;
+            if (self.set_already_sorted) flags |= c.MDB_APPENDDUP;
             return flags;
         }
     };
@@ -627,9 +626,9 @@ pub const Cursor = packed struct {
     }
 
     pub inline fn put(self: Self, key: []const u8, val: []const u8, flags: PutFlags) !void {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
-        try call(mdb_cursor_put, .{ self.inner, k, v, flags.into() });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        try call(c.mdb_cursor_put, .{ self.inner, k, v, flags.into() });
     }
 
     /// May only be used with databases supporting duplicate keys with fixed-sized values. Returns
@@ -637,21 +636,21 @@ pub const Cursor = packed struct {
     pub inline fn putBatch(self: Self, key: []const u8, batch: anytype, flags: PutFlags) !usize {
         comptime assert(meta.trait.isIndexable(@TypeOf(batch)));
 
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = [_]MDB_val{
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = [_]c.MDB_val{
             .{ .mv_size = @sizeOf(meta.Elem(@TypeOf(batch))), .mv_data = @intToPtr(?*c_void, @ptrToInt(&batch[0])) },
             .{ .mv_size = mem.len(batch), .mv_data = undefined },
         };
-        try call(mdb_cursor_put, .{ self.inner, k, &v, MDB_MULTIPLE | flags.into() });
+        try call(c.mdb_cursor_put, .{ self.inner, k, &v, c.MDB_MULTIPLE | flags.into() });
 
         return @intCast(usize, v[1].mv_size);
     }
 
     pub inline fn getOrPut(self: Self, key: []const u8, val: []const u8) !?[]const u8 {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
 
-        call(mdb_cursor_put, .{ self.inner, k, v, MDB_NOOVERWRITE }) catch |err| switch (err) {
+        call(c.mdb_cursor_put, .{ self.inner, k, v, c.MDB_NOOVERWRITE }) catch |err| switch (err) {
             error.AlreadyExists => return @ptrCast([*]u8, v.mv_data)[0..v.mv_size],
             else => return err,
         };
@@ -664,9 +663,9 @@ pub const Cursor = packed struct {
         data_already_sorted: bool = false,
 
         pub inline fn into(self: ReserveFlags) c_uint {
-            var flags: c_uint = MDB_RESERVE;
-            if (self.dont_overwrite_key) flags |= MDB_NOOVERWRITE;
-            if (self.data_already_sorted) flags |= MDB_APPEND;
+            var flags: c_uint = c.MDB_RESERVE;
+            if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
+            if (self.data_already_sorted) flags |= c.MDB_APPEND;
             return flags;
         }
     };
@@ -677,10 +676,10 @@ pub const Cursor = packed struct {
     };
 
     pub inline fn reserve(self: Self, key: []const u8, val_len: usize, flags: ReserveFlags) !ReserveResult {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val_len, .mv_data = null };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val_len, .mv_data = null };
 
-        call(mdb_cursor_put, .{ self.inner, k, v, flags.into() }) catch |err| switch (err) {
+        call(c.mdb_cursor_put, .{ self.inner, k, v, flags.into() }) catch |err| switch (err) {
             error.AlreadyExists => return ReserveResult{
                 .found_existing = @ptrCast([*]const u8, v.mv_data)[0..v.mv_size],
             },
@@ -692,32 +691,32 @@ pub const Cursor = packed struct {
         };
     }
 
-    pub inline fn del(self: Self, op: enum(c_uint) { key = MDB_NODUPDATA, item = 0 }) !void {
-        call(mdb_cursor_del, .{ self.inner, @enumToInt(op) }) catch |err| switch (err) {
+    pub inline fn del(self: Self, op: enum(c_uint) { key = c.MDB_NODUPDATA, item = 0 }) !void {
+        call(c.mdb_cursor_del, .{ self.inner, @enumToInt(op) }) catch |err| switch (err) {
             error.InvalidParameter => return error.NotFound,
             else => return err,
         };
     }
 
     pub const Position = enum(c_int) {
-        first = MDB_FIRST,
-        first_item = MDB_FIRST_DUP,
-        current = MDB_GET_CURRENT,
-        last = MDB_LAST,
-        last_item = MDB_LAST_DUP,
-        next = MDB_NEXT,
-        next_item = MDB_NEXT_DUP,
-        next_key = MDB_NEXT_NODUP,
-        prev = MDB_PREV,
-        prev_item = MDB_PREV_DUP,
-        prev_key = MDB_PREV_NODUP,
+        first = c.MDB_FIRST,
+        first_item = c.MDB_FIRST_DUP,
+        current = c.MDB_GET_CURRENT,
+        last = c.MDB_LAST,
+        last_item = c.MDB_LAST_DUP,
+        next = c.MDB_NEXT,
+        next_item = c.MDB_NEXT_DUP,
+        next_key = c.MDB_NEXT_NODUP,
+        prev = c.MDB_PREV,
+        prev_item = c.MDB_PREV_DUP,
+        prev_key = c.MDB_PREV_NODUP,
     };
 
     pub inline fn get(self: Self, pos: Position) !?Entry {
-        var k: MDB_val = undefined;
-        var v: MDB_val = undefined;
-        const op = @intToEnum(MDB_cursor_op, @enumToInt(pos));
-        call(mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
+        var k: c.MDB_val = undefined;
+        var v: c.MDB_val = undefined;
+        const op = @intToEnum(c.MDB_cursor_op, @enumToInt(pos));
+        call(c.mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
             error.InvalidParameter => return if (pos == .current) null else err,
             error.NotFound => return null,
             else => return err,
@@ -729,16 +728,16 @@ pub const Cursor = packed struct {
     }
 
     pub const PagePosition = enum(c_int) {
-        current = MDB_GET_MULTIPLE,
-        next = MDB_NEXT_MULTIPLE,
-        prev = MDB_PREV_MULTIPLE,
+        current = c.MDB_GET_MULTIPLE,
+        next = c.MDB_NEXT_MULTIPLE,
+        prev = c.MDB_PREV_MULTIPLE,
     };
 
     pub inline fn getPage(self: Self, comptime T: type, pos: PagePosition) !?Page(T) {
-        var k: MDB_val = undefined;
-        var v: MDB_val = undefined;
-        const op = @intToEnum(MDB_cursor_op, @enumToInt(pos));
-        call(mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
+        var k: c.MDB_val = undefined;
+        var v: c.MDB_val = undefined;
+        const op = @intToEnum(c.MDB_cursor_op, @enumToInt(pos));
+        call(c.mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
             error.NotFound => return null,
             else => return err,
         };
@@ -749,29 +748,29 @@ pub const Cursor = packed struct {
     }
 
     pub inline fn seekToItem(self: Self, key: []const u8, val: []const u8) !void {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
-        try call(mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        try call(c.mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH });
     }
 
     pub inline fn seekFromItem(self: Self, key: []const u8, val: []const u8) ![]const u8 {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
-        try call(mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH_RANGE });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        try call(c.mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH_RANGE });
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
 
     pub inline fn seekTo(self: Self, key: []const u8) ![]const u8 {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v: MDB_val = undefined;
-        try call(mdb_cursor_get, .{ self.inner, k, &v, .MDB_SET_KEY });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v: c.MDB_val = undefined;
+        try call(c.mdb_cursor_get, .{ self.inner, k, &v, .MDB_SET_KEY });
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
 
     pub inline fn seekFrom(self: Self, key: []const u8) !Entry {
-        var k = &MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v: MDB_val = undefined;
-        try call(mdb_cursor_get, .{ self.inner, k, &v, .MDB_SET_RANGE });
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var v: c.MDB_val = undefined;
+        try call(c.mdb_cursor_get, .{ self.inner, k, &v, .MDB_SET_RANGE });
         return Entry{
             .key = @ptrCast([*]const u8, k.mv_data)[0..k.mv_size],
             .val = @ptrCast([*]const u8, v.mv_data)[0..v.mv_size],
@@ -844,28 +843,28 @@ inline fn call(comptime function: anytype, args: anytype) ResultOf(function) {
     if (ResultOf(function) == void) return rc;
 
     return switch (rc) {
-        MDB_SUCCESS => {},
-        MDB_KEYEXIST => error.AlreadyExists,
-        MDB_NOTFOUND => error.NotFound,
-        MDB_PAGE_NOTFOUND => error.PageNotFound,
-        MDB_CORRUPTED => error.PageCorrupted,
-        MDB_PANIC => error.Panic,
-        MDB_VERSION_MISMATCH => error.VersionMismatch,
-        MDB_INVALID => error.FileNotDatabase,
-        MDB_MAP_FULL => error.MapSizeLimitReached,
-        MDB_DBS_FULL => error.MaxNumDatabasesLimitReached,
-        MDB_READERS_FULL => error.MaxNumReadersLimitReached,
-        MDB_TLS_FULL => error.TooManyEnvironmentsOpen,
-        MDB_TXN_FULL => error.TransactionTooBig,
-        MDB_CURSOR_FULL => error.CursorStackLimitReached,
-        MDB_PAGE_FULL => error.OutOfPageMemory,
-        MDB_MAP_RESIZED => error.DatabaseExceedsMapSizeLimit,
-        MDB_INCOMPATIBLE => error.IncompatibleOperation,
-        MDB_BAD_RSLOT => error.InvalidReaderLocktableSlotReuse,
-        MDB_BAD_TXN => error.TransactionNotAborted,
-        MDB_BAD_VALSIZE => error.UnsupportedSize,
-        MDB_BAD_DBI => error.BadDatabaseHandle,
-        MDB_PROBLEM => error.Unexpected,
+        c.MDB_SUCCESS => {},
+        c.MDB_KEYEXIST => error.AlreadyExists,
+        c.MDB_NOTFOUND => error.NotFound,
+        c.MDB_PAGE_NOTFOUND => error.PageNotFound,
+        c.MDB_CORRUPTED => error.PageCorrupted,
+        c.MDB_PANIC => error.Panic,
+        c.MDB_VERSION_MISMATCH => error.VersionMismatch,
+        c.MDB_INVALID => error.FileNotDatabase,
+        c.MDB_MAP_FULL => error.MapSizeLimitReached,
+        c.MDB_DBS_FULL => error.MaxNumDatabasesLimitReached,
+        c.MDB_READERS_FULL => error.MaxNumReadersLimitReached,
+        c.MDB_TLS_FULL => error.TooManyEnvironmentsOpen,
+        c.MDB_TXN_FULL => error.TransactionTooBig,
+        c.MDB_CURSOR_FULL => error.CursorStackLimitReached,
+        c.MDB_PAGE_FULL => error.OutOfPageMemory,
+        c.MDB_MAP_RESIZED => error.DatabaseExceedsMapSizeLimit,
+        c.MDB_INCOMPATIBLE => error.IncompatibleOperation,
+        c.MDB_BAD_RSLOT => error.InvalidReaderLocktableSlotReuse,
+        c.MDB_BAD_TXN => error.TransactionNotAborted,
+        c.MDB_BAD_VALSIZE => error.UnsupportedSize,
+        c.MDB_BAD_DBI => error.BadDatabaseHandle,
+        c.MDB_PROBLEM => error.Unexpected,
         os.ENOENT => error.NoSuchFileOrDirectory,
         os.EIO => error.InputOutputError,
         os.ENOMEM => error.OutOfMemory,
@@ -874,7 +873,7 @@ inline fn call(comptime function: anytype, args: anytype) ResultOf(function) {
         os.EINVAL => error.InvalidParameter,
         os.ENOSPC => error.NoSpaceLeftOnDevice,
         os.EEXIST => error.FileAlreadyExists,
-        else => panic("{}: ({}) {s}", .{ @TypeOf(function), rc, mdb_strerror(rc) }),
+        else => panic("{}: ({}) {s}", .{ @TypeOf(function), rc, c.mdb_strerror(rc) }),
     };
 }
 
