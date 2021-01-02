@@ -52,7 +52,6 @@ pub const Environment = packed struct {
         disable_locks: bool = false,
         disable_readahead: bool = false,
         disable_memory_initialization: bool = false,
-        open_previous_snapshot: bool = false,
 
         pub inline fn into(self: Self.OpenFlags) c_uint {
             var flags: c_uint = 0;
@@ -67,7 +66,6 @@ pub const Environment = packed struct {
             if (self.disable_locks) flags |= c.MDB_NOLOCK;
             if (self.disable_readahead) flags |= c.MDB_NORDAHEAD;
             if (self.disable_memory_initialization) flags |= c.MDB_NOMEMINIT;
-            if (self.open_previous_snapshot) flags |= c.MDB_PREVSNAPSHOT;
             return flags;
         }
     };
@@ -165,7 +163,6 @@ pub const Environment = packed struct {
         disable_locks: bool = false,
         disable_readahead: bool = false,
         disable_memory_initialization: bool = false,
-        open_previous_snapshot: bool = false,
 
         pub inline fn from(flags: c_uint) Flags {
             return Flags{
@@ -180,7 +177,6 @@ pub const Environment = packed struct {
                 .disable_locks = flags & c.MDB_NOLOCK != 0,
                 .disable_readahead = flags & c.MDB_NORDAHEAD != 0,
                 .disable_memory_initialization = flags & c.MDB_NOMEMINIT != 0,
-                .open_previous_snapshot = flags & c.MDB_PREVSNAPSHOT != 0,
             };
         }
 
@@ -197,7 +193,6 @@ pub const Environment = packed struct {
             if (self.disable_locks) flags |= c.MDB_NOLOCK;
             if (self.disable_readahead) flags |= c.MDB_NORDAHEAD;
             if (self.disable_memory_initialization) flags |= c.MDB_NOMEMINIT;
-            if (self.open_previous_snapshot) flags |= c.MDB_PREVSNAPSHOT;
             return flags;
         }
     };
@@ -839,7 +834,7 @@ inline fn ResultOf(comptime function: anytype) type {
 }
 
 inline fn call(comptime function: anytype, args: anytype) ResultOf(function) {
-    const rc = @call(.{ .modifier = .always_inline }, function, args);
+    const rc = @call(.{}, function, args);
     if (ResultOf(function) == void) return rc;
 
     return switch (rc) {
@@ -864,7 +859,6 @@ inline fn call(comptime function: anytype, args: anytype) ResultOf(function) {
         c.MDB_BAD_TXN => error.TransactionNotAborted,
         c.MDB_BAD_VALSIZE => error.UnsupportedSize,
         c.MDB_BAD_DBI => error.BadDatabaseHandle,
-        c.MDB_PROBLEM => error.Unexpected,
         os.ENOENT => error.NoSuchFileOrDirectory,
         os.EIO => error.InputOutputError,
         os.ENOMEM => error.OutOfMemory,
@@ -873,7 +867,7 @@ inline fn call(comptime function: anytype, args: anytype) ResultOf(function) {
         os.EINVAL => error.InvalidParameter,
         os.ENOSPC => error.NoSpaceLeftOnDevice,
         os.EEXIST => error.FileAlreadyExists,
-        else => panic("{}: ({}) {s}", .{ @TypeOf(function), rc, c.mdb_strerror(rc) }),
+        else => panic("({}) {s}", .{ rc, c.mdb_strerror(rc) }),
     };
 }
 
