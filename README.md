@@ -1,6 +1,6 @@
 # lmdb-zig
 
-Lightweight, fully-featured, idiomatic cross-platform [Zig](https://ziglang.org) bindings to [Lighting Memory-Mapped Database (LMDB)](http://www.lmdb.tech/doc/).
+Lightweight, fully-featured, idiomatic cross-platform [Zig](https://ziglang.org) bindings to [Lightning Memory-Mapped Database (LMDB)](http://www.lmdb.tech/doc/).
 
 LMDB is a tiny, extraordinarily fast Btree-based embedded KV database with some excellent properties:
 - Zero-copy lookup and iteration: the entire database is memory-mapped.
@@ -11,7 +11,7 @@ LMDB is a tiny, extraordinarily fast Btree-based embedded KV database with some 
 - Entire database is exposed as a single file accompanied by a lockfile. A single database file may comprise of multiple named databases.
 - Fully exploits the operating system's buffer cache given its memory mapping and compact size being a mere 32KB worth of object code.
 
-Refer to the 12 extensive unit tests provided [here](lmdb.zig#L880) for usage instructions and guidelines. 
+Refer to the 12 extensive unit tests provided [here](lmdb.zig#L874) for usage instructions and guidelines. 
 
 Built and tested against Zig's master branch over all possible optimization modes.
 

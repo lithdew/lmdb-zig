@@ -87,9 +87,9 @@ pub const Environment = packed struct {
         }
 
         if (!mem.endsWith(u8, env_path, &[_]u8{0})) {
-            assert(env_path.len + 1 < fs.MAX_PATH_BYTES);
+            assert(env_path.len + 1 <= fs.MAX_PATH_BYTES);
 
-            var fixed_path: [fs.MAX_PATH_BYTES]u8 = undefined;
+            var fixed_path: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
             mem.copy(u8, &fixed_path, env_path);
             fixed_path[env_path.len] = 0;
 
@@ -117,9 +117,9 @@ pub const Environment = packed struct {
 
     pub inline fn copyTo(self: Self, backup_path: []const u8, flags: CopyFlags) !void {
         if (!mem.endsWith(u8, backup_path, &[_]u8{0})) {
-            assert(backup_path.len + 1 < fs.MAX_PATH_BYTES);
+            assert(backup_path.len + 1 <= fs.MAX_PATH_BYTES);
 
-            var fixed_path: [fs.MAX_PATH_BYTES]u8 = undefined;
+            var fixed_path: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
             mem.copy(u8, &fixed_path, backup_path);
             fixed_path[backup_path.len] = 0;
 
@@ -1243,13 +1243,15 @@ test "Transaction: custom key comparator" {
         try tx.put(db, item, item, .{ .dont_overwrite_key = true });
     }
 
-    const cursor = try tx.cursor(db);
-    defer cursor.deinit();
+    {
+        const cursor = try tx.cursor(db);
+        defer cursor.deinit();
 
-    var i: usize = 0;
-    while (try cursor.next()) |item| : (i += 1) {
-        testing.expectEqualSlices(u8, items[items.len - 1 - i], item.key);
-        testing.expectEqualSlices(u8, items[items.len - 1 - i], item.val);
+        var i: usize = 0;
+        while (try cursor.next()) |item| : (i += 1) {
+            testing.expectEqualSlices(u8, items[items.len - 1 - i], item.key);
+            testing.expectEqualSlices(u8, items[items.len - 1 - i], item.val);
+        }
     }
 
     try tx.commit();
@@ -1271,82 +1273,84 @@ test "Cursor: move around a database and add / delete some entries" {
     const db = try tx.open(.{});
     defer db.close(env);
 
-    const cursor = try tx.cursor(db);
-    defer cursor.deinit();
-
-    const items = [_][]const u8{ "a", "b", "c" };
-
-    // Cursor.put()
-
-    inline for (items) |item| {
-        try cursor.put(item, item, .{ .dont_overwrite_key = true });
-    }
-
-    // Cursor.current() / Cursor.first() / Cursor.last() / Cursor.next() / Cursor.prev()
-
     {
-        const last_item = try cursor.last();
-        testing.expectEqualStrings(items[items.len - 1], last_item.?.key);
-        testing.expectEqualStrings(items[items.len - 1], last_item.?.val);
+        const cursor = try tx.cursor(db);
+        defer cursor.deinit();
+
+        const items = [_][]const u8{ "a", "b", "c" };
+
+        // Cursor.put()
+
+        inline for (items) |item| {
+            try cursor.put(item, item, .{ .dont_overwrite_key = true });
+        }
+
+        // Cursor.current() / Cursor.first() / Cursor.last() / Cursor.next() / Cursor.prev()
 
         {
-            var i: usize = items.len - 1;
-            while (true) {
-                const item = (try cursor.prev()) orelse break;
-                testing.expectEqualStrings(items[i - 1], item.key);
-                testing.expectEqualStrings(items[i - 1], item.val);
-                i -= 1;
+            const last_item = try cursor.last();
+            testing.expectEqualStrings(items[items.len - 1], last_item.?.key);
+            testing.expectEqualStrings(items[items.len - 1], last_item.?.val);
+
+            {
+                var i: usize = items.len - 1;
+                while (true) {
+                    const item = (try cursor.prev()) orelse break;
+                    testing.expectEqualStrings(items[i - 1], item.key);
+                    testing.expectEqualStrings(items[i - 1], item.val);
+                    i -= 1;
+                }
+            }
+
+            const current = try cursor.current();
+            const first_item = try cursor.first();
+            testing.expectEqualStrings(items[0], first_item.?.key);
+            testing.expectEqualStrings(items[0], first_item.?.val);
+            testing.expectEqualStrings(first_item.?.key, current.?.key);
+            testing.expectEqualStrings(first_item.?.val, current.?.val);
+
+            {
+                var i: usize = 1;
+                while (true) {
+                    const item = (try cursor.next()) orelse break;
+                    testing.expectEqualStrings(items[i], item.key);
+                    testing.expectEqualStrings(items[i], item.val);
+                    i += 1;
+                }
             }
         }
 
-        const current = try cursor.current();
-        const first_item = try cursor.first();
-        testing.expectEqualStrings(items[0], first_item.?.key);
-        testing.expectEqualStrings(items[0], first_item.?.val);
-        testing.expectEqualStrings(first_item.?.key, current.?.key);
-        testing.expectEqualStrings(first_item.?.val, current.?.val);
+        // Cursor.delete()
 
-        {
-            var i: usize = 1;
-            while (true) {
-                const item = (try cursor.next()) orelse break;
-                testing.expectEqualStrings(items[i], item.key);
-                testing.expectEqualStrings(items[i], item.val);
-                i += 1;
-            }
+        try cursor.del(.key);
+        while (try cursor.prev()) |_| try cursor.del(.key);
+        testing.expectError(error.NotFound, cursor.del(.key));
+        testing.expect((try cursor.current()) == null);
+
+        // Cursor.put() / Cursor.updateInPlace() / Cursor.reserveInPlace()
+
+        inline for (items) |item| {
+            try cursor.put(item, item, .{ .dont_overwrite_key = true });
+
+            try cursor.updateInPlace(item, "???");
+            testing.expectEqualStrings("???", (try cursor.current()).?.val);
+
+            mem.copy(u8, try cursor.reserveInPlace(item, item.len), item);
+            testing.expectEqualStrings(item, (try cursor.current()).?.val);
         }
+
+        // Cursor.seekTo()
+
+        testing.expectError(error.NotFound, cursor.seekTo("0"));
+        testing.expectEqualStrings(items[items.len / 2], try cursor.seekTo(items[items.len / 2]));
+
+        // Cursor.seekFrom()
+
+        testing.expectEqualStrings(items[0], (try cursor.seekFrom("0")).val);
+        testing.expectEqualStrings(items[items.len / 2], (try cursor.seekFrom(items[items.len / 2])).val);
+        testing.expectError(error.NotFound, cursor.seekFrom("z"));
+        testing.expectEqualStrings(items[items.len - 1], (try cursor.seekFrom(items[items.len - 1])).val);
     }
-
-    // Cursor.delete()
-
-    try cursor.del(.key);
-    while (try cursor.prev()) |_| try cursor.del(.key);
-    testing.expectError(error.NotFound, cursor.del(.key));
-    testing.expect((try cursor.current()) == null);
-
-    // Cursor.put() / Cursor.updateInPlace() / Cursor.reserveInPlace()
-
-    inline for (items) |item| {
-        try cursor.put(item, item, .{ .dont_overwrite_key = true });
-
-        try cursor.updateInPlace(item, "???");
-        testing.expectEqualStrings("???", (try cursor.current()).?.val);
-
-        mem.copy(u8, try cursor.reserveInPlace(item, item.len), item);
-        testing.expectEqualStrings(item, (try cursor.current()).?.val);
-    }
-
-    // Cursor.seekTo()
-
-    testing.expectError(error.NotFound, cursor.seekTo("0"));
-    testing.expectEqualStrings(items[items.len / 2], try cursor.seekTo(items[items.len / 2]));
-
-    // Cursor.seekFrom()
-
-    testing.expectEqualStrings(items[0], (try cursor.seekFrom("0")).val);
-    testing.expectEqualStrings(items[items.len / 2], (try cursor.seekFrom(items[items.len / 2])).val);
-    testing.expectError(error.NotFound, cursor.seekFrom("z"));
-    testing.expectEqualStrings(items[items.len - 1], (try cursor.seekFrom(items[items.len - 1])).val);
 
     try tx.commit();
 }
@@ -1379,22 +1383,24 @@ test "Cursor: interact with variable-sized items in a database with duplicate ke
         }
     }
 
-    const cursor = try tx.cursor(db);
-    defer cursor.deinit();
+    {
+        const cursor = try tx.cursor(db);
+        defer cursor.deinit();
 
-    comptime var i = 0;
-    comptime var j = 0;
+        comptime var i = 0;
+        comptime var j = 0;
 
-    inline while (i < expected.len) : ({
-        i += 1;
-        j = 0;
-    }) {
-        inline while (j < expected[i][1].len) : (j += 1) {
-            const maybe_entry = try cursor.next();
-            const entry = maybe_entry orelse unreachable;
+        inline while (i < expected.len) : ({
+            i += 1;
+            j = 0;
+        }) {
+            inline while (j < expected[i][1].len) : (j += 1) {
+                const maybe_entry = try cursor.next();
+                const entry = maybe_entry orelse unreachable;
 
-            testing.expectEqualStrings(expected[i][0], entry.key);
-            testing.expectEqualStrings(expected[i][1][j], entry.val);
+                testing.expectEqualStrings(expected[i][0], entry.key);
+                testing.expectEqualStrings(expected[i][1][j], entry.val);
+            }
         }
     }
 

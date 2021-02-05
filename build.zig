@@ -4,7 +4,9 @@ const deps = @import("deps.zig");
 const Builder = std.build.Builder;
 
 pub fn build(b: *Builder) void {
-    const target = b.standardTargetOptions(.{});
+    var target = b.standardTargetOptions(.{});
+    if (target.isGnuLibC()) target.abi = .musl;
+
     const mode = b.standardReleaseOptions();
 
     const tests = b.addTest("lmdb.zig");
