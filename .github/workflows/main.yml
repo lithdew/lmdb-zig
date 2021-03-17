@@ -44,19 +44,19 @@ jobs:
       - name: Setup Package Manager (MacOS)
         if: matrix.os == 'macos-latest'
         run: |
-          wget https://github.com/nektro/zigmod/releases/download/v26/zigmod-x86_64-macos -O zigmod
+          wget https://github.com/nektro/zigmod/releases/download/v31/zigmod-x86_64-macos -O zigmod
           chmod +x zigmod
 
       - name: Setup Package Manager (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          wget https://github.com/nektro/zigmod/releases/download/v26/zigmod-x86_64-linux -O zigmod
+          wget https://github.com/nektro/zigmod/releases/download/v31/zigmod-x86_64-linux -O zigmod
           chmod +x zigmod
 
       - name: Setup Package Manager (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          (new-object net.webclient).DownloadFile('https://github.com/nektro/zigmod/releases/download/v26/zigmod-x86_64-windows.exe', 'zigmod.exe')
+          (new-object net.webclient).DownloadFile('https://github.com/nektro/zigmod/releases/download/v31/zigmod-x86_64-windows.exe', 'zigmod.exe')
       
       - name: Test
         run: |
