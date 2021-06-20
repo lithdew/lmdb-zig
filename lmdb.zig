@@ -643,7 +643,7 @@ pub const Cursor = packed struct {
     pub fn get(self: Self, pos: Position) callconv(.Inline) !?Entry {
         var k: c.MDB_val = undefined;
         var v: c.MDB_val = undefined;
-        const op = @intToEnum(c.MDB_cursor_op, @enumToInt(pos));
+        const op = @intToEnum(c.MDB_cursor_op, @intCast(c_uint, @enumToInt(pos)));
         call(c.mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
             error.InvalidParameter => return if (pos == .current) null else err,
             error.NotFound => return null,
@@ -663,7 +663,7 @@ pub const Cursor = packed struct {
     pub fn getPage(self: Self, comptime T: type, pos: PagePosition) callconv(.Inline) !?Page(T) {
         var k: c.MDB_val = undefined;
         var v: c.MDB_val = undefined;
-        const op = @intToEnum(c.MDB_cursor_op, @enumToInt(pos));
+        const op = @intToEnum(c.MDB_cursor_op, @intCast(c_uint, @enumToInt(pos)));
         call(c.mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
             error.NotFound => return null,
             else => return err,
@@ -804,43 +804,43 @@ test "Environment.init() / Environment.deinit(): query environment stats, flags,
     });
     defer env.deinit();
 
-    testing.expectEqualStrings(path, env.path());
-    testing.expect(env.getMaxKeySize() > 0);
-    testing.expect(env.getMaxNumReaders() == 42);
+    try testing.expectEqualStrings(path, env.path());
+    try testing.expect(env.getMaxKeySize() > 0);
+    try testing.expect(env.getMaxNumReaders() == 42);
 
     const stat = env.stat();
-    testing.expect(stat.tree_height == 0);
-    testing.expect(stat.num_branch_pages == 0);
-    testing.expect(stat.num_leaf_pages == 0);
-    testing.expect(stat.num_overflow_pages == 0);
-    testing.expect(stat.num_entries == 0);
+    try testing.expect(stat.tree_height == 0);
+    try testing.expect(stat.num_branch_pages == 0);
+    try testing.expect(stat.num_leaf_pages == 0);
+    try testing.expect(stat.num_overflow_pages == 0);
+    try testing.expect(stat.num_entries == 0);
 
     const flags = env.getFlags();
-    testing.expect(flags.use_writable_memory_map == true);
-    testing.expect(flags.dont_sync_metadata == true);
+    try testing.expect(flags.use_writable_memory_map == true);
+    try testing.expect(flags.dont_sync_metadata == true);
 
     env.disableFlags(.{ .dont_sync_metadata = true });
-    testing.expect(env.getFlags().dont_sync_metadata == false);
+    try testing.expect(env.getFlags().dont_sync_metadata == false);
 
     env.enableFlags(.{ .dont_sync_metadata = true });
-    testing.expect(env.getFlags().dont_sync_metadata == true);
+    try testing.expect(env.getFlags().dont_sync_metadata == true);
 
     const info = env.info();
-    testing.expect(info.map_address == null);
-    testing.expect(info.map_size == 4 * 1024 * 1024);
-    testing.expect(info.last_page_num == 1);
-    testing.expect(info.last_tx_id == 0);
-    testing.expect(info.max_num_reader_slots > 0);
-    testing.expect(info.num_used_reader_slots == 0);
+    try testing.expect(info.map_address == null);
+    try testing.expect(info.map_size == 4 * 1024 * 1024);
+    try testing.expect(info.last_page_num == 1);
+    try testing.expect(info.last_tx_id == 0);
+    try testing.expect(info.max_num_reader_slots > 0);
+    try testing.expect(info.num_used_reader_slots == 0);
 
     try env.setMapSize(8 * 1024 * 1024);
-    testing.expect(env.info().map_size == 8 * 1024 * 1024);
+    try testing.expect(env.info().map_size == 8 * 1024 * 1024);
 
     // The file descriptor should be >= 0.
 
-    testing.expect(env.fd() >= 0);
+    try testing.expect(env.fd() >= 0);
 
-    testing.expect((try env.purge()) == 0);
+    try testing.expect((try env.purge()) == 0);
 }
 
 test "Environment.copyTo(): backup environment and check environment integrity" {
@@ -869,7 +869,7 @@ test "Environment.copyTo(): backup environment and check environment integrity" 
         var i: u8 = 0;
         while (i < 128) : (i += 1) {
             try tx.put(db, &[_]u8{i}, &[_]u8{i}, .{ .dont_overwrite_key = true });
-            testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
+            try testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
         }
 
         try tx.commit();
@@ -888,7 +888,7 @@ test "Environment.copyTo(): backup environment and check environment integrity" 
 
         var i: u8 = 0;
         while (i < 128) : (i += 1) {
-            testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
+            try testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
         }
     }
 }
@@ -917,7 +917,7 @@ test "Environment.sync(): manually flush system buffers" {
         var i: u8 = 0;
         while (i < 128) : (i += 1) {
             try tx.put(db, &[_]u8{i}, &[_]u8{i}, .{ .dont_overwrite_key = true });
-            testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
+            try testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
         }
 
         try tx.commit();
@@ -933,7 +933,7 @@ test "Environment.sync(): manually flush system buffers" {
 
         var i: u8 = 0;
         while (i < 128) : (i += 1) {
-            testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
+            try testing.expectEqualStrings(&[_]u8{i}, try tx.get(db, &[_]u8{i}));
         }
     }
 }
@@ -957,37 +957,37 @@ test "Transaction: get(), put(), reserve(), delete(), and commit() several entri
     // Transaction.put() / Transaction.get()
 
     try tx.put(db, "hello", "world", .{});
-    testing.expectEqualStrings("world", try tx.get(db, "hello"));
+    try testing.expectEqualStrings("world", try tx.get(db, "hello"));
 
     // Transaction.put() / Transaction.reserve() / Transaction.get() (.{ .dont_overwrite_key = true })
 
-    testing.expectError(error.AlreadyExists, tx.put(db, "hello", "world", .{ .dont_overwrite_key = true }));
+    try testing.expectError(error.AlreadyExists, tx.put(db, "hello", "world", .{ .dont_overwrite_key = true }));
     {
         const result = try tx.reserve(db, "hello", "world".len, .{ .dont_overwrite_key = true });
-        testing.expectEqualStrings("world", result.found_existing);
+        try testing.expectEqualStrings("world", result.found_existing);
     }
-    testing.expectEqualStrings("world", try tx.get(db, "hello"));
+    try testing.expectEqualStrings("world", try tx.get(db, "hello"));
 
     // Transaction.put() / Transaction.get() / Transaction.reserve() (.{ .dont_overwrite_key = false })
 
     try tx.put(db, "hello", "other_value", .{});
-    testing.expectEqualStrings("other_value", try tx.get(db, "hello"));
+    try testing.expectEqualStrings("other_value", try tx.get(db, "hello"));
     {
         const result = try tx.reserve(db, "hello", "new_value".len, .{});
-        testing.expectEqual("new_value".len, result.successful.len);
+        try testing.expectEqual("new_value".len, result.successful.len);
         mem.copy(u8, result.successful, "new_value");
     }
-    testing.expectEqualStrings("new_value", try tx.get(db, "hello"));
+    try testing.expectEqualStrings("new_value", try tx.get(db, "hello"));
 
     // Transaction.del() / Transaction.get() / Transaction.put() / Transaction.get()
 
     try tx.del(db, "hello", .key);
 
-    testing.expectError(error.NotFound, tx.del(db, "hello", .key));
-    testing.expectError(error.NotFound, tx.get(db, "hello"));
+    try testing.expectError(error.NotFound, tx.del(db, "hello", .key));
+    try testing.expectError(error.NotFound, tx.get(db, "hello"));
 
     try tx.put(db, "hello", "world", .{});
-    testing.expectEqualStrings("world", try tx.get(db, "hello"));
+    try testing.expectEqualStrings("world", try tx.get(db, "hello"));
 
     // Transaction.commit()
 
@@ -1011,13 +1011,13 @@ test "Transaction: reserve, write, and attempt to reserve again with dont_overwr
     defer db.close(env);
 
     switch (try tx.reserve(db, "hello", "world!".len, .{ .dont_overwrite_key = true })) {
-        .found_existing => testing.expect(false),
+        .found_existing => try testing.expect(false),
         .successful => |dst| std.mem.copy(u8, dst, "world!"),
     }
 
     switch (try tx.reserve(db, "hello", "world!".len, .{ .dont_overwrite_key = true })) {
-        .found_existing => |src| testing.expectEqualStrings("world!", src),
-        .successful => testing.expect(false),
+        .found_existing => |src| try testing.expectEqualStrings("world!", src),
+        .successful => try testing.expect(false),
     }
 
     try tx.commit();
@@ -1039,9 +1039,9 @@ test "Transaction: getOrPut() twice" {
     const db = try tx.open(.{});
     defer db.close(env);
 
-    testing.expectEqual(@as(?[]const u8, null), try tx.getOrPut(db, "hello", "world"));
-    testing.expectEqualStrings("world", try tx.get(db, "hello"));
-    testing.expectEqualStrings("world", (try tx.getOrPut(db, "hello", "world")) orelse unreachable);
+    try testing.expectEqual(@as(?[]const u8, null), try tx.getOrPut(db, "hello", "world"));
+    try testing.expectEqualStrings("world", try tx.get(db, "hello"));
+    try testing.expectEqualStrings("world", (try tx.getOrPut(db, "hello", "world")) orelse unreachable);
 
     try tx.commit();
 }
@@ -1082,8 +1082,8 @@ test "Transaction: use multiple named databases in a single transaction" {
         const b = try tx.use("B", .{});
         defer b.close(env);
 
-        testing.expectEqualStrings("this is in A!", try tx.get(a, "hello"));
-        testing.expectEqualStrings("this is in B!", try tx.get(b, "hello"));
+        try testing.expectEqualStrings("this is in A!", try tx.get(a, "hello"));
+        try testing.expectEqualStrings("this is in B!", try tx.get(b, "hello"));
 
         try tx.commit();
     }
@@ -1112,18 +1112,18 @@ test "Transaction: nest transaction inside transaction" {
         // Parent ID is equivalent to Child ID. Parent is not allowed to perform
         // operations while child has yet to be aborted / committed.
 
-        testing.expectEqual(parent.id(), child.id());
+        try testing.expectEqual(parent.id(), child.id());
 
         // Operations cannot be performed against a parent transaction while a child
         // transaction is still active.
 
-        testing.expectError(error.TransactionNotAborted, parent.get(db, "hello"));
+        try testing.expectError(error.TransactionNotAborted, parent.get(db, "hello"));
 
         try child.put(db, "hello", "world", .{});
         try child.commit();
     }
 
-    testing.expectEqualStrings("world", try parent.get(db, "hello"));
+    try testing.expectEqualStrings("world", try parent.get(db, "hello"));
     try parent.commit();
 }
 
@@ -1167,8 +1167,8 @@ test "Transaction: custom key comparator" {
 
         var i: usize = 0;
         while (try cursor.next()) |item| : (i += 1) {
-            testing.expectEqualSlices(u8, items[items.len - 1 - i], item.key);
-            testing.expectEqualSlices(u8, items[items.len - 1 - i], item.val);
+            try testing.expectEqualSlices(u8, items[items.len - 1 - i], item.key);
+            try testing.expectEqualSlices(u8, items[items.len - 1 - i], item.val);
         }
     }
 
@@ -1207,32 +1207,32 @@ test "Cursor: move around a database and add / delete some entries" {
 
         {
             const last_item = try cursor.last();
-            testing.expectEqualStrings(items[items.len - 1], last_item.?.key);
-            testing.expectEqualStrings(items[items.len - 1], last_item.?.val);
+            try testing.expectEqualStrings(items[items.len - 1], last_item.?.key);
+            try testing.expectEqualStrings(items[items.len - 1], last_item.?.val);
 
             {
                 var i: usize = items.len - 1;
                 while (true) {
                     const item = (try cursor.prev()) orelse break;
-                    testing.expectEqualStrings(items[i - 1], item.key);
-                    testing.expectEqualStrings(items[i - 1], item.val);
+                    try testing.expectEqualStrings(items[i - 1], item.key);
+                    try testing.expectEqualStrings(items[i - 1], item.val);
                     i -= 1;
                 }
             }
 
             const current = try cursor.current();
             const first_item = try cursor.first();
-            testing.expectEqualStrings(items[0], first_item.?.key);
-            testing.expectEqualStrings(items[0], first_item.?.val);
-            testing.expectEqualStrings(first_item.?.key, current.?.key);
-            testing.expectEqualStrings(first_item.?.val, current.?.val);
+            try testing.expectEqualStrings(items[0], first_item.?.key);
+            try testing.expectEqualStrings(items[0], first_item.?.val);
+            try testing.expectEqualStrings(first_item.?.key, current.?.key);
+            try testing.expectEqualStrings(first_item.?.val, current.?.val);
 
             {
                 var i: usize = 1;
                 while (true) {
                     const item = (try cursor.next()) orelse break;
-                    testing.expectEqualStrings(items[i], item.key);
-                    testing.expectEqualStrings(items[i], item.val);
+                    try testing.expectEqualStrings(items[i], item.key);
+                    try testing.expectEqualStrings(items[i], item.val);
                     i += 1;
                 }
             }
@@ -1242,8 +1242,8 @@ test "Cursor: move around a database and add / delete some entries" {
 
         try cursor.del(.key);
         while (try cursor.prev()) |_| try cursor.del(.key);
-        testing.expectError(error.NotFound, cursor.del(.key));
-        testing.expect((try cursor.current()) == null);
+        try testing.expectError(error.NotFound, cursor.del(.key));
+        try testing.expect((try cursor.current()) == null);
 
         // Cursor.put() / Cursor.updateInPlace() / Cursor.reserveInPlace()
 
@@ -1251,23 +1251,23 @@ test "Cursor: move around a database and add / delete some entries" {
             try cursor.put(item, item, .{ .dont_overwrite_key = true });
 
             try cursor.updateInPlace(item, "???");
-            testing.expectEqualStrings("???", (try cursor.current()).?.val);
+            try testing.expectEqualStrings("???", (try cursor.current()).?.val);
 
             mem.copy(u8, try cursor.reserveInPlace(item, item.len), item);
-            testing.expectEqualStrings(item, (try cursor.current()).?.val);
+            try testing.expectEqualStrings(item, (try cursor.current()).?.val);
         }
 
         // Cursor.seekTo()
 
-        testing.expectError(error.NotFound, cursor.seekTo("0"));
-        testing.expectEqualStrings(items[items.len / 2], try cursor.seekTo(items[items.len / 2]));
+        try testing.expectError(error.NotFound, cursor.seekTo("0"));
+        try testing.expectEqualStrings(items[items.len / 2], try cursor.seekTo(items[items.len / 2]));
 
         // Cursor.seekFrom()
 
-        testing.expectEqualStrings(items[0], (try cursor.seekFrom("0")).val);
-        testing.expectEqualStrings(items[items.len / 2], (try cursor.seekFrom(items[items.len / 2])).val);
-        testing.expectError(error.NotFound, cursor.seekFrom("z"));
-        testing.expectEqualStrings(items[items.len - 1], (try cursor.seekFrom(items[items.len - 1])).val);
+        try testing.expectEqualStrings(items[0], (try cursor.seekFrom("0")).val);
+        try testing.expectEqualStrings(items[items.len / 2], (try cursor.seekFrom(items[items.len / 2])).val);
+        try testing.expectError(error.NotFound, cursor.seekFrom("z"));
+        try testing.expectEqualStrings(items[items.len - 1], (try cursor.seekFrom(items[items.len - 1])).val);
     }
 
     try tx.commit();
@@ -1316,8 +1316,8 @@ test "Cursor: interact with variable-sized items in a database with duplicate ke
                 const maybe_entry = try cursor.next();
                 const entry = maybe_entry orelse unreachable;
 
-                testing.expectEqualStrings(expected[i][0], entry.key);
-                testing.expectEqualStrings(expected[i][1][j], entry.val);
+                try testing.expectEqualStrings(expected[i][0], entry.key);
+                try testing.expectEqualStrings(expected[i][1][j], entry.val);
             }
         }
     }
@@ -1369,7 +1369,7 @@ test "Cursor: interact with batches of fixed-sized items in a database with dupl
         defer cursor.deinit();
 
         inline for (expected) |entry| {
-            testing.expectEqual(entry[1].len, try cursor.putBatch(entry[0], entry[1], .{}));
+            try testing.expectEqual(entry[1].len, try cursor.putBatch(entry[0], entry[1], .{}));
         }
     }
 
@@ -1380,13 +1380,13 @@ test "Cursor: interact with batches of fixed-sized items in a database with dupl
         inline for (expected) |expected_entry| {
             const maybe_entry = try cursor.next();
             const entry = maybe_entry orelse unreachable;
-            testing.expectEqualStrings(expected_entry[0], entry.key);
+            try testing.expectEqualStrings(expected_entry[0], entry.key);
 
             var i: usize = 0;
 
             while (try cursor.nextPage(u64)) |page| {
                 for (page.items) |item| {
-                    testing.expectEqual(expected_entry[1][i], item);
+                    try testing.expectEqual(expected_entry[1][i], item);
                     i += 1;
                 }
             }
