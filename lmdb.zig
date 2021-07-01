@@ -52,7 +52,7 @@ pub const Environment = packed struct {
         disable_locks: bool = false,
         disable_readahead: bool = false,
         disable_memory_initialization: bool = false,
-        pub fn into(self: Self.OpenFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.OpenFlags) c_uint {
             var flags: c_uint = 0;
             if (self.fix_mapped_address) flags |= c.MDB_FIXEDMAP;
             if (self.no_sub_directory) flags |= c.MDB_NOSUBDIR;
@@ -68,7 +68,7 @@ pub const Environment = packed struct {
             return flags;
         }
     };
-    pub fn init(env_path: []const u8, flags: Self.OpenFlags) callconv(.Inline) !Self {
+    pub inline fn init(env_path: []const u8, flags: Self.OpenFlags) !Self {
         var inner: ?*c.MDB_env = null;
 
         try call(c.mdb_env_create, .{&inner});
@@ -98,19 +98,19 @@ pub const Environment = packed struct {
 
         return Self{ .inner = inner };
     }
-    pub fn deinit(self: Self) callconv(.Inline) void {
+    pub inline fn deinit(self: Self) void {
         call(c.mdb_env_close, .{self.inner});
     }
 
     pub const CopyFlags = packed struct {
         compact: bool = false,
-        pub fn into(self: Self.CopyFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.CopyFlags) c_uint {
             var flags: c_uint = 0;
             if (self.compact) flags |= c.MDB_CP_COMPACT;
             return flags;
         }
     };
-    pub fn copyTo(self: Self, backup_path: []const u8, flags: CopyFlags) callconv(.Inline) !void {
+    pub inline fn copyTo(self: Self, backup_path: []const u8, flags: CopyFlags) !void {
         if (!mem.endsWith(u8, backup_path, &[_]u8{0})) {
             assert(backup_path.len + 1 <= fs.MAX_PATH_BYTES);
 
@@ -123,20 +123,20 @@ pub const Environment = packed struct {
             try call(c.mdb_env_copy2, .{ self.inner, backup_path.ptr, flags.into() });
         }
     }
-    pub fn pipeTo(self: Self, fd: os.fd_t, flags: CopyFlags) callconv(.Inline) !void {
+    pub inline fn pipeTo(self: Self, fd: os.fd_t, flags: CopyFlags) !void {
         try call(c.mdb_env_copyfd2, .{ self.inner, fd, flags.into() });
     }
-    pub fn getMaxKeySize(self: Self) callconv(.Inline) usize {
+    pub inline fn getMaxKeySize(self: Self) usize {
         return @intCast(usize, c.mdb_env_get_maxkeysize(self.inner));
     }
-    pub fn getMaxNumReaders(self: Self) callconv(.Inline) usize {
+    pub inline fn getMaxNumReaders(self: Self) usize {
         var max_num_readers: c_uint = 0;
         call(c.mdb_env_get_maxreaders, .{ self.inner, &max_num_readers }) catch |err| {
             panic("Environment.getMaxNumReaders(): {}", .{err});
         };
         return @intCast(usize, max_num_readers);
     }
-    pub fn setMapSize(self: Self, map_size: ?usize) callconv(.Inline) !void {
+    pub inline fn setMapSize(self: Self, map_size: ?usize) !void {
         try call(c.mdb_env_set_mapsize, .{ self.inner, if (map_size) |size| size else 0 });
     }
 
@@ -152,7 +152,7 @@ pub const Environment = packed struct {
         disable_locks: bool = false,
         disable_readahead: bool = false,
         disable_memory_initialization: bool = false,
-        pub fn from(flags: c_uint) callconv(.Inline) Flags {
+        pub inline fn from(flags: c_uint) Flags {
             return Flags{
                 .fix_mapped_address = flags & c.MDB_FIXEDMAP != 0,
                 .no_sub_directory = flags & c.MDB_NOSUBDIR != 0,
@@ -167,7 +167,7 @@ pub const Environment = packed struct {
                 .disable_memory_initialization = flags & c.MDB_NOMEMINIT != 0,
             };
         }
-        pub fn into(self: Self.Flags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.Flags) c_uint {
             var flags: c_uint = 0;
             if (self.fix_mapped_address) flags |= c.MDB_FIXEDMAP;
             if (self.no_sub_directory) flags |= c.MDB_NOSUBDIR;
@@ -183,7 +183,7 @@ pub const Environment = packed struct {
             return flags;
         }
     };
-    pub fn getFlags(self: Self) callconv(.Inline) Flags {
+    pub inline fn getFlags(self: Self) Flags {
         var inner: c_uint = undefined;
         call(c.mdb_env_get_flags, .{ self.inner, &inner }) catch |err| {
             panic("Environment.getFlags(): {}", .{err});
@@ -196,7 +196,7 @@ pub const Environment = packed struct {
         dont_sync: bool = false,
         flush_asynchronously: bool = false,
         disable_memory_initialization: bool = false,
-        pub fn into(self: Self.MutableFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.MutableFlags) c_uint {
             var flags: c_uint = 0;
             if (self.dont_sync_metadata) flags |= c.MDB_NOMETASYNC;
             if (self.dont_sync) flags |= c.MDB_NOSYNC;
@@ -205,17 +205,17 @@ pub const Environment = packed struct {
             return flags;
         }
     };
-    pub fn enableFlags(self: Self, flags: MutableFlags) callconv(.Inline) void {
+    pub inline fn enableFlags(self: Self, flags: MutableFlags) void {
         call(c.mdb_env_set_flags, .{ self.inner, flags.into(), 1 }) catch |err| {
             panic("Environment.enableFlags(): {}", .{err});
         };
     }
-    pub fn disableFlags(self: Self, flags: MutableFlags) callconv(.Inline) void {
+    pub inline fn disableFlags(self: Self, flags: MutableFlags) void {
         call(c.mdb_env_set_flags, .{ self.inner, flags.into(), 0 }) catch |err| {
             panic("Environment.disableFlags(): {}", .{err});
         };
     }
-    pub fn path(self: Self) callconv(.Inline) []const u8 {
+    pub inline fn path(self: Self) []const u8 {
         var env_path: [:0]const u8 = undefined;
         call(c.mdb_env_get_path, .{ self.inner, @ptrCast([*c][*c]const u8, &env_path.ptr) }) catch |err| {
             panic("Environment.path(): {}", .{err});
@@ -223,7 +223,7 @@ pub const Environment = packed struct {
         env_path.len = mem.indexOfSentinel(u8, 0, env_path.ptr);
         return mem.span(env_path);
     }
-    pub fn stat(self: Self) callconv(.Inline) Statistics {
+    pub inline fn stat(self: Self) Statistics {
         var inner: c.MDB_stat = undefined;
         call(c.mdb_env_stat, .{ self.inner, &inner }) catch |err| {
             panic("Environment.stat(): {}", .{err});
@@ -237,14 +237,14 @@ pub const Environment = packed struct {
             .num_entries = @intCast(usize, inner.ms_entries),
         };
     }
-    pub fn fd(self: Self) callconv(.Inline) os.fd_t {
+    pub inline fn fd(self: Self) os.fd_t {
         var inner: os.fd_t = undefined;
         call(c.mdb_env_get_fd, .{ self.inner, &inner }) catch |err| {
             panic("Environment.fd(): {}", .{err});
         };
         return inner;
     }
-    pub fn info(self: Self) callconv(.Inline) Info {
+    pub inline fn info(self: Self) Info {
         var inner: c.MDB_envinfo = undefined;
         call(c.mdb_env_info, .{ self.inner, &inner }) catch |err| {
             panic("Environment.info(): {}", .{err});
@@ -258,16 +258,16 @@ pub const Environment = packed struct {
             .num_used_reader_slots = @intCast(usize, inner.me_numreaders),
         };
     }
-    pub fn begin(self: Self, flags: Transaction.Flags) callconv(.Inline) !Transaction {
+    pub inline fn begin(self: Self, flags: Transaction.Flags) !Transaction {
         var inner: ?*c.MDB_txn = null;
         const maybe_parent = if (flags.parent) |parent| parent.inner else null;
         try call(c.mdb_txn_begin, .{ self.inner, maybe_parent, flags.into(), &inner });
         return Transaction{ .inner = inner };
     }
-    pub fn sync(self: Self, force: bool) callconv(.Inline) !void {
+    pub inline fn sync(self: Self, force: bool) !void {
         try call(c.mdb_env_sync, .{ self.inner, @as(c_int, if (force) 1 else 0) });
     }
-    pub fn purge(self: Self) callconv(.Inline) !usize {
+    pub inline fn purge(self: Self) !usize {
         var count: c_int = undefined;
         try call(c.mdb_reader_check, .{ self.inner, &count });
         return @intCast(usize, count);
@@ -282,7 +282,7 @@ pub const Database = struct {
         duplicate_entries_are_fixed_size: bool = false,
         duplicate_keys_are_integers: bool = false,
         compare_duplicate_keys_in_reverse_order: bool = false,
-        pub fn into(self: Self.OpenFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.OpenFlags) c_uint {
             var flags: c_uint = 0;
             if (self.compare_keys_in_reverse_order) flags |= c.MDB_REVERSEKEY;
             if (self.allow_duplicate_keys) flags |= c.MDB_DUPSORT;
@@ -302,7 +302,7 @@ pub const Database = struct {
         duplicate_keys_are_integers: bool = false,
         compare_duplicate_keys_in_reverse_order: bool = false,
         create_if_not_exists: bool = false,
-        pub fn into(self: Self.UseFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.UseFlags) c_uint {
             var flags: c_uint = 0;
             if (self.compare_keys_in_reverse_order) flags |= c.MDB_REVERSEKEY;
             if (self.allow_duplicate_keys) flags |= c.MDB_DUPSORT;
@@ -318,7 +318,7 @@ pub const Database = struct {
     const Self = @This();
 
     inner: c.MDB_dbi,
-    pub fn close(self: Self, env: Environment) callconv(.Inline) void {
+    pub inline fn close(self: Self, env: Environment) void {
         call(c.mdb_dbi_close, .{ env.inner, self.inner });
     }
 };
@@ -329,7 +329,7 @@ pub const Transaction = packed struct {
         read_only: bool = false,
         dont_sync: bool = false,
         dont_sync_metadata: bool = false,
-        pub fn into(self: Self.Flags) callconv(.Inline) c_uint {
+        pub inline fn into(self: Self.Flags) c_uint {
             var flags: c_uint = 0;
             if (self.read_only) flags |= c.MDB_RDONLY;
             if (self.dont_sync) flags |= c.MDB_NOSYNC;
@@ -341,25 +341,25 @@ pub const Transaction = packed struct {
     const Self = @This();
 
     inner: ?*c.MDB_txn,
-    pub fn id(self: Self) callconv(.Inline) usize {
+    pub inline fn id(self: Self) usize {
         return @intCast(usize, c.mdb_txn_id(self.inner));
     }
-    pub fn open(self: Self, flags: Database.OpenFlags) callconv(.Inline) !Database {
+    pub inline fn open(self: Self, flags: Database.OpenFlags) !Database {
         var inner: c.MDB_dbi = 0;
         try call(c.mdb_dbi_open, .{ self.inner, null, flags.into(), &inner });
         return Database{ .inner = inner };
     }
-    pub fn use(self: Self, name: []const u8, flags: Database.UseFlags) callconv(.Inline) !Database {
+    pub inline fn use(self: Self, name: []const u8, flags: Database.UseFlags) !Database {
         var inner: c.MDB_dbi = 0;
         try call(c.mdb_dbi_open, .{ self.inner, name.ptr, flags.into(), &inner });
         return Database{ .inner = inner };
     }
-    pub fn cursor(self: Self, db: Database) callconv(.Inline) !Cursor {
+    pub inline fn cursor(self: Self, db: Database) !Cursor {
         var inner: ?*c.MDB_cursor = undefined;
         try call(c.mdb_cursor_open, .{ self.inner, db.inner, &inner });
         return Cursor{ .inner = inner };
     }
-    pub fn setKeyOrder(self: Self, db: Database, comptime order: fn (a: []const u8, b: []const u8) math.Order) callconv(.Inline) !void {
+    pub inline fn setKeyOrder(self: Self, db: Database, comptime order: fn (a: []const u8, b: []const u8) math.Order) !void {
         const S = struct {
             fn cmp(a: ?*const c.MDB_val, b: ?*const c.MDB_val) callconv(.C) c_int {
                 const slice_a = @ptrCast([*]const u8, a.?.mv_data)[0..a.?.mv_size];
@@ -373,7 +373,7 @@ pub const Transaction = packed struct {
         };
         try call(c.mdb_set_compare, .{ self.inner, db.inner, S.cmp });
     }
-    pub fn setItemOrder(self: Self, db: Database, comptime order: fn (a: []const u8, b: []const u8) math.Order) callconv(.Inline) !void {
+    pub inline fn setItemOrder(self: Self, db: Database, comptime order: fn (a: []const u8, b: []const u8) math.Order) !void {
         const S = struct {
             fn cmp(a: ?*const c.MDB_val, b: ?*const c.MDB_val) callconv(.C) c_int {
                 const slice_a = @ptrCast([*]const u8, a.?.mv_data)[0..a.?.mv_size];
@@ -387,7 +387,7 @@ pub const Transaction = packed struct {
         };
         try call(c.mdb_set_dupsort, .{ self.inner, db.inner, S.cmp });
     }
-    pub fn get(self: Self, db: Database, key: []const u8) callconv(.Inline) ![]const u8 {
+    pub inline fn get(self: Self, db: Database, key: []const u8) ![]const u8 {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v: c.MDB_val = undefined;
         try call(c.mdb_get, .{ self.inner, db.inner, k, &v });
@@ -400,7 +400,7 @@ pub const Transaction = packed struct {
         dont_overwrite_item: bool = false,
         data_already_sorted: bool = false,
         set_already_sorted: bool = false,
-        pub fn into(self: PutFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: PutFlags) c_uint {
             var flags: c_uint = 0;
             if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
             if (self.dont_overwrite_item) flags |= c.MDB_NODUPDATA;
@@ -409,16 +409,16 @@ pub const Transaction = packed struct {
             return flags;
         }
     };
-    pub fn putItem(self: Self, db: Database, key: []const u8, val: anytype, flags: PutFlags) callconv(.Inline) !void {
+    pub inline fn putItem(self: Self, db: Database, key: []const u8, val: anytype, flags: PutFlags) !void {
         const bytes = if (meta.trait.isIndexable(@TypeOf(val))) mem.span(val) else mem.asBytes(&val);
         return self.put(db, key, bytes, flags);
     }
-    pub fn put(self: Self, db: Database, key: []const u8, val: []const u8, flags: PutFlags) callconv(.Inline) !void {
+    pub inline fn put(self: Self, db: Database, key: []const u8, val: []const u8, flags: PutFlags) !void {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
         try call(c.mdb_put, .{ self.inner, db.inner, k, v, flags.into() });
     }
-    pub fn getOrPut(self: Self, db: Database, key: []const u8, val: []const u8) callconv(.Inline) !?[]const u8 {
+    pub inline fn getOrPut(self: Self, db: Database, key: []const u8, val: []const u8) !?[]const u8 {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
 
@@ -433,7 +433,7 @@ pub const Transaction = packed struct {
     pub const ReserveFlags = packed struct {
         dont_overwrite_key: bool = false,
         data_already_sorted: bool = false,
-        pub fn into(self: ReserveFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: ReserveFlags) c_uint {
             var flags: c_uint = c.MDB_RESERVE;
             if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
             if (self.data_already_sorted) flags |= c.MDB_APPEND;
@@ -445,7 +445,7 @@ pub const Transaction = packed struct {
         successful: []u8,
         found_existing: []const u8,
     };
-    pub fn reserve(self: Self, db: Database, key: []const u8, val_len: usize, flags: ReserveFlags) callconv(.Inline) !ReserveResult {
+    pub inline fn reserve(self: Self, db: Database, key: []const u8, val_len: usize, flags: ReserveFlags) !ReserveResult {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val_len, .mv_data = null };
 
@@ -460,7 +460,7 @@ pub const Transaction = packed struct {
             .successful = @ptrCast([*]u8, v.mv_data)[0..v.mv_size],
         };
     }
-    pub fn del(self: Self, db: Database, key: []const u8, op: union(enum) { key: void, item: []const u8 }) callconv(.Inline) !void {
+    pub inline fn del(self: Self, db: Database, key: []const u8, op: union(enum) { key: void, item: []const u8 }) !void {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v: ?*c.MDB_val = switch (op) {
             .key => null,
@@ -471,19 +471,19 @@ pub const Transaction = packed struct {
         };
         try call(c.mdb_del, .{ self.inner, db.inner, k, v });
     }
-    pub fn drop(self: Self, db: Database, method: enum(c_int) { empty = 0, delete = 1 }) callconv(.Inline) !void {
+    pub inline fn drop(self: Self, db: Database, method: enum(c_int) { empty = 0, delete = 1 }) !void {
         try call(c.mdb_drop, .{ self.inner, db.inner, @enumToInt(method) });
     }
-    pub fn deinit(self: Self) callconv(.Inline) void {
+    pub inline fn deinit(self: Self) void {
         call(c.mdb_txn_abort, .{self.inner});
     }
-    pub fn commit(self: Self) callconv(.Inline) !void {
+    pub inline fn commit(self: Self) !void {
         try call(c.mdb_txn_commit, .{self.inner});
     }
-    pub fn renew(self: Self) callconv(.Inline) !void {
+    pub inline fn renew(self: Self) !void {
         try call(c.mdb_txn_renew, .{self.inner});
     }
-    pub fn reset(self: Self) callconv(.Inline) !void {
+    pub inline fn reset(self: Self) !void {
         try call(c.mdb_txn_reset, .{self.inner});
     }
 };
@@ -504,19 +504,19 @@ pub const Cursor = packed struct {
     const Self = @This();
 
     inner: ?*c.MDB_cursor,
-    pub fn deinit(self: Self) callconv(.Inline) void {
+    pub inline fn deinit(self: Self) void {
         call(c.mdb_cursor_close, .{self.inner});
     }
-    pub fn tx(self: Self) callconv(.Inline) Transaction {
+    pub inline fn tx(self: Self) Transaction {
         return Transaction{ .inner = c.mdb_cursor_txn(self.inner) };
     }
-    pub fn db(self: Self) callconv(.Inline) Database {
+    pub inline fn db(self: Self) Database {
         return Database{ .inner = c.mdb_cursor_dbi(self.inner) };
     }
-    pub fn renew(self: Self, parent: Transaction) callconv(.Inline) !void {
+    pub inline fn renew(self: Self, parent: Transaction) !void {
         try call(c.mdb_cursor_renew, .{ parent.inner, self.inner });
     }
-    pub fn count(self: Self) callconv(.Inline) usize {
+    pub inline fn count(self: Self) usize {
         var inner: c.mdb_size_t = undefined;
         call(c.mdb_cursor_count, .{ self.inner, &inner }) catch |err| {
             panic("cursor is initialized, or database does not support duplicate keys: {}", .{err});
@@ -548,7 +548,7 @@ pub const Cursor = packed struct {
         dont_overwrite_item: bool = false,
         data_already_sorted: bool = false,
         set_already_sorted: bool = false,
-        pub fn into(self: PutFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: PutFlags) c_uint {
             var flags: c_uint = 0;
             if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
             if (self.dont_overwrite_item) flags |= c.MDB_NODUPDATA;
@@ -557,16 +557,16 @@ pub const Cursor = packed struct {
             return flags;
         }
     };
-    pub fn putItem(self: Self, key: []const u8, val: anytype, flags: PutFlags) callconv(.Inline) !void {
+    pub inline fn putItem(self: Self, key: []const u8, val: anytype, flags: PutFlags) !void {
         const bytes = if (meta.trait.isIndexable(@TypeOf(val))) mem.span(val) else mem.asBytes(&val);
         return self.put(key, bytes, flags);
     }
-    pub fn put(self: Self, key: []const u8, val: []const u8, flags: PutFlags) callconv(.Inline) !void {
+    pub inline fn put(self: Self, key: []const u8, val: []const u8, flags: PutFlags) !void {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
         try call(c.mdb_cursor_put, .{ self.inner, k, v, flags.into() });
     }
-    pub fn putBatch(self: Self, key: []const u8, batch: anytype, flags: PutFlags) callconv(.Inline) !usize {
+    pub inline fn putBatch(self: Self, key: []const u8, batch: anytype, flags: PutFlags) !usize {
         comptime assert(meta.trait.isIndexable(@TypeOf(batch)));
 
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
@@ -578,7 +578,7 @@ pub const Cursor = packed struct {
 
         return @intCast(usize, v[1].mv_size);
     }
-    pub fn getOrPut(self: Self, key: []const u8, val: []const u8) callconv(.Inline) !?[]const u8 {
+    pub inline fn getOrPut(self: Self, key: []const u8, val: []const u8) !?[]const u8 {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
 
@@ -593,7 +593,7 @@ pub const Cursor = packed struct {
     pub const ReserveFlags = packed struct {
         dont_overwrite_key: bool = false,
         data_already_sorted: bool = false,
-        pub fn into(self: ReserveFlags) callconv(.Inline) c_uint {
+        pub inline fn into(self: ReserveFlags) c_uint {
             var flags: c_uint = c.MDB_RESERVE;
             if (self.dont_overwrite_key) flags |= c.MDB_NOOVERWRITE;
             if (self.data_already_sorted) flags |= c.MDB_APPEND;
@@ -605,7 +605,7 @@ pub const Cursor = packed struct {
         successful: []u8,
         found_existing: []const u8,
     };
-    pub fn reserve(self: Self, key: []const u8, val_len: usize, flags: ReserveFlags) callconv(.Inline) !ReserveResult {
+    pub inline fn reserve(self: Self, key: []const u8, val_len: usize, flags: ReserveFlags) !ReserveResult {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val_len, .mv_data = null };
 
@@ -620,14 +620,14 @@ pub const Cursor = packed struct {
             .successful = @ptrCast([*]u8, v.mv_data)[0..v.mv_size],
         };
     }
-    pub fn del(self: Self, op: enum(c_uint) { key = c.MDB_NODUPDATA, item = 0 }) callconv(.Inline) !void {
+    pub inline fn del(self: Self, op: enum(c_uint) { key = c.MDB_NODUPDATA, item = 0 }) !void {
         call(c.mdb_cursor_del, .{ self.inner, @enumToInt(op) }) catch |err| switch (err) {
             error.InvalidParameter => return error.NotFound,
             else => return err,
         };
     }
 
-    pub const Position = enum(c_int) {
+    pub const Position = enum(c.MDB_cursor_op) {
         first = c.MDB_FIRST,
         first_item = c.MDB_FIRST_DUP,
         current = c.MDB_GET_CURRENT,
@@ -640,11 +640,10 @@ pub const Cursor = packed struct {
         prev_item = c.MDB_PREV_DUP,
         prev_key = c.MDB_PREV_NODUP,
     };
-    pub fn get(self: Self, pos: Position) callconv(.Inline) !?Entry {
+    pub inline fn get(self: Self, pos: Position) !?Entry {
         var k: c.MDB_val = undefined;
         var v: c.MDB_val = undefined;
-        const op = @intToEnum(c.MDB_cursor_op, @intCast(c_uint, @enumToInt(pos)));
-        call(c.mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
+        call(c.mdb_cursor_get, .{ self.inner, &k, &v, @enumToInt(pos) }) catch |err| switch (err) {
             error.InvalidParameter => return if (pos == .current) null else err,
             error.NotFound => return null,
             else => return err,
@@ -655,16 +654,15 @@ pub const Cursor = packed struct {
         };
     }
 
-    pub const PagePosition = enum(c_int) {
+    pub const PagePosition = enum(c.MDB_cursor_op) {
         current = c.MDB_GET_MULTIPLE,
         next = c.MDB_NEXT_MULTIPLE,
         prev = c.MDB_PREV_MULTIPLE,
     };
-    pub fn getPage(self: Self, comptime T: type, pos: PagePosition) callconv(.Inline) !?Page(T) {
+    pub inline fn getPage(self: Self, comptime T: type, pos: PagePosition) !?Page(T) {
         var k: c.MDB_val = undefined;
         var v: c.MDB_val = undefined;
-        const op = @intToEnum(c.MDB_cursor_op, @intCast(c_uint, @enumToInt(pos)));
-        call(c.mdb_cursor_get, .{ self.inner, &k, &v, op }) catch |err| switch (err) {
+        call(c.mdb_cursor_get, .{ self.inner, &k, &v, @enumToInt(pos) }) catch |err| switch (err) {
             error.NotFound => return null,
             else => return err,
         };
@@ -673,81 +671,81 @@ pub const Cursor = packed struct {
             .items = mem.bytesAsSlice(T, @ptrCast([*]const u8, v.mv_data)[0..v.mv_size]),
         };
     }
-    pub fn seekToItem(self: Self, key: []const u8, val: []const u8) callconv(.Inline) !void {
+    pub inline fn seekToItem(self: Self, key: []const u8, val: []const u8) !void {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
         try call(c.mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH });
     }
-    pub fn seekFromItem(self: Self, key: []const u8, val: []const u8) callconv(.Inline) ![]const u8 {
+    pub inline fn seekFromItem(self: Self, key: []const u8, val: []const u8) ![]const u8 {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
-        try call(c.mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH_RANGE });
+        try call(c.mdb_cursor_get, .{ self.inner, k, v, c.MDB_GET_BOTH_RANGE });
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
-    pub fn seekTo(self: Self, key: []const u8) callconv(.Inline) ![]const u8 {
+    pub inline fn seekTo(self: Self, key: []const u8) ![]const u8 {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v: c.MDB_val = undefined;
-        try call(c.mdb_cursor_get, .{ self.inner, k, &v, .MDB_SET_KEY });
+        try call(c.mdb_cursor_get, .{ self.inner, k, &v, c.MDB_SET_KEY });
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
-    pub fn seekFrom(self: Self, key: []const u8) callconv(.Inline) !Entry {
+    pub inline fn seekFrom(self: Self, key: []const u8) !Entry {
         var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
         var v: c.MDB_val = undefined;
-        try call(c.mdb_cursor_get, .{ self.inner, k, &v, .MDB_SET_RANGE });
+        try call(c.mdb_cursor_get, .{ self.inner, k, &v, c.MDB_SET_RANGE });
         return Entry{
             .key = @ptrCast([*]const u8, k.mv_data)[0..k.mv_size],
             .val = @ptrCast([*]const u8, v.mv_data)[0..v.mv_size],
         };
     }
-    pub fn first(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn first(self: Self) !?Entry {
         return self.get(.first);
     }
-    pub fn firstItem(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn firstItem(self: Self) !?Entry {
         return self.get(.first_item);
     }
-    pub fn current(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn current(self: Self) !?Entry {
         return self.get(.current);
     }
-    pub fn last(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn last(self: Self) !?Entry {
         return self.get(.last);
     }
-    pub fn lastItem(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn lastItem(self: Self) !?Entry {
         return self.get(.last_item);
     }
-    pub fn next(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn next(self: Self) !?Entry {
         return self.get(.next);
     }
-    pub fn nextItem(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn nextItem(self: Self) !?Entry {
         return self.get(.next_item);
     }
-    pub fn nextKey(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn nextKey(self: Self) !?Entry {
         return self.get(.next_key);
     }
-    pub fn prev(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn prev(self: Self) !?Entry {
         return self.get(.prev);
     }
-    pub fn prevItem(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn prevItem(self: Self) !?Entry {
         return self.get(.prev_item);
     }
-    pub fn prevKey(self: Self) callconv(.Inline) !?Entry {
+    pub inline fn prevKey(self: Self) !?Entry {
         return self.get(.prev_key);
     }
-    pub fn currentPage(self: Self, comptime T: type) callconv(.Inline) !?Page(T) {
+    pub inline fn currentPage(self: Self, comptime T: type) !?Page(T) {
         return self.getPage(T, .current);
     }
-    pub fn nextPage(self: Self, comptime T: type) callconv(.Inline) !?Page(T) {
+    pub inline fn nextPage(self: Self, comptime T: type) !?Page(T) {
         return self.getPage(T, .next);
     }
-    pub fn prevPage(self: Self, comptime T: type) callconv(.Inline) !?Page(T) {
+    pub inline fn prevPage(self: Self, comptime T: type) !?Page(T) {
         return self.getPage(T, .prev);
     }
 };
 
-fn ResultOf(comptime function: anytype) callconv(.Inline) type {
+inline fn ResultOf(comptime function: anytype) type {
     return if (@typeInfo(@TypeOf(function)).Fn.return_type == c_int) anyerror!void else void;
 }
 
-fn call(comptime function: anytype, args: anytype) callconv(.Inline) ResultOf(function) {
+inline fn call(comptime function: anytype, args: anytype) ResultOf(function) {
     const rc = @call(.{}, function, args);
     if (ResultOf(function) == void) return rc;
 
@@ -1289,7 +1287,7 @@ test "Cursor: interact with variable-sized items in a database with duplicate ke
     const db = try tx.open(.{ .allow_duplicate_keys = true });
     defer db.close(env);
 
-    comptime const expected = .{
+    const expected = comptime .{
         .{ "Another Set C", [_][]const u8{ "be", "ka", "kra", "tan" } },
         .{ "Set A", [_][]const u8{ "a", "kay", "zay" } },
         .{ "Some Set B", [_][]const u8{ "bru", "ski", "vle" } },
@@ -1359,7 +1357,7 @@ test "Cursor: interact with batches of fixed-sized items in a database with dupl
     comptime var items: [512]u64 = undefined;
     inline for (items) |*item, i| item.* = @as(u64, i);
 
-    comptime const expected = .{
+    const expected = comptime .{
         .{ "Set A", &items },
         .{ "Set B", &items },
     };
