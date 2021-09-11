@@ -123,8 +123,8 @@ pub const Environment = packed struct {
             try call(c.mdb_env_copy2, .{ self.inner, backup_path.ptr, flags.into() });
         }
     }
-    pub inline fn pipeTo(self: Self, fd: os.fd_t, flags: CopyFlags) !void {
-        try call(c.mdb_env_copyfd2, .{ self.inner, fd, flags.into() });
+    pub inline fn pipeTo(self: Self, fdHandle: os.fd_t, flags: CopyFlags) !void {
+        try call(c.mdb_env_copyfd2, .{ self.inner, fdHandle, flags.into() });
     }
     pub inline fn getMaxKeySize(self: Self) usize {
         return @intCast(usize, c.mdb_env_get_maxkeysize(self.inner));
@@ -525,7 +525,7 @@ pub const Cursor = packed struct {
     }
 
     pub fn updateItemInPlace(self: Self, current_key: []const u8, new_val: anytype) !void {
-        const bytes = if (meta.trait.isIndexable(@TypeOf(new_val))) mem.span(val) else mem.asBytes(&val);
+        const bytes = if (meta.trait.isIndexable(@TypeOf(new_val))) mem.span(new_val) else mem.asBytes(&new_val);
         return self.updateInPlace(current_key, bytes);
     }
 
