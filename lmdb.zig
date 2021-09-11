@@ -123,8 +123,8 @@ pub const Environment = packed struct {
             try call(c.mdb_env_copy2, .{ self.inner, backup_path.ptr, flags.into() });
         }
     }
-    pub inline fn pipeTo(self: Self, fdHandle: os.fd_t, flags: CopyFlags) !void {
-        try call(c.mdb_env_copyfd2, .{ self.inner, fdHandle, flags.into() });
+    pub inline fn pipeTo(self: Self, fd_handle: os.fd_t, flags: CopyFlags) !void {
+        try call(c.mdb_env_copyfd2, .{ self.inner, fd_handle, flags.into() });
     }
     pub inline fn getMaxKeySize(self: Self) usize {
         return @intCast(usize, c.mdb_env_get_maxkeysize(self.inner));
