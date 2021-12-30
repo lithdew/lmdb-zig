@@ -388,7 +388,7 @@ pub const Transaction = packed struct {
         try call(c.mdb_set_dupsort, .{ self.inner, db.inner, S.cmp });
     }
     pub inline fn get(self: Self, db: Database, key: []const u8) ![]const u8 {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v: c.MDB_val = undefined;
         try call(c.mdb_get, .{ self.inner, db.inner, k, &v });
 
@@ -414,13 +414,13 @@ pub const Transaction = packed struct {
         return self.put(db, key, bytes, flags);
     }
     pub inline fn put(self: Self, db: Database, key: []const u8, val: []const u8, flags: PutFlags) !void {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(val.ptr)) };
         try call(c.mdb_put, .{ self.inner, db.inner, k, v, flags.into() });
     }
     pub inline fn getOrPut(self: Self, db: Database, key: []const u8, val: []const u8) !?[]const u8 {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(val.ptr)) };
 
         call(c.mdb_put, .{ self.inner, db.inner, k, v, c.MDB_NOOVERWRITE }) catch |err| switch (err) {
             error.AlreadyExists => return @ptrCast([*]u8, v.mv_data)[0..v.mv_size],
@@ -446,7 +446,7 @@ pub const Transaction = packed struct {
         found_existing: []const u8,
     };
     pub inline fn reserve(self: Self, db: Database, key: []const u8, val_len: usize, flags: ReserveFlags) !ReserveResult {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val_len, .mv_data = null };
 
         call(c.mdb_put, .{ self.inner, db.inner, k, v, flags.into() }) catch |err| switch (err) {
@@ -461,12 +461,12 @@ pub const Transaction = packed struct {
         };
     }
     pub inline fn del(self: Self, db: Database, key: []const u8, op: union(enum) { key: void, item: []const u8 }) !void {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v: ?*c.MDB_val = switch (op) {
             .key => null,
             .item => |item| &c.MDB_val{
                 .mv_size = item.len,
-                .mv_data = @intToPtr(?*c_void, @ptrToInt(item.ptr)),
+                .mv_data = @intToPtr(?*anyopaque, @ptrToInt(item.ptr)),
             },
         };
         try call(c.mdb_del, .{ self.inner, db.inner, k, v });
@@ -530,14 +530,14 @@ pub const Cursor = packed struct {
     }
 
     pub fn updateInPlace(self: Self, current_key: []const u8, new_val: []const u8) !void {
-        var k = &c.MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(current_key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = new_val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(new_val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(current_key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = new_val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(new_val.ptr)) };
         try call(c.mdb_cursor_put, .{ self.inner, k, v, c.MDB_CURRENT });
     }
 
     /// May not be used with databases supporting duplicate keys.
     pub fn reserveInPlace(self: Self, current_key: []const u8, new_val_len: usize) ![]u8 {
-        var k = &c.MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(current_key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = current_key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(current_key.ptr)) };
         var v = &c.MDB_val{ .mv_size = new_val_len, .mv_data = null };
         try call(c.mdb_cursor_put, .{ self.inner, k, v, c.MDB_CURRENT | c.MDB_RESERVE });
         return @ptrCast([*]u8, v.mv_data)[0..v.mv_size];
@@ -562,16 +562,16 @@ pub const Cursor = packed struct {
         return self.put(key, bytes, flags);
     }
     pub inline fn put(self: Self, key: []const u8, val: []const u8, flags: PutFlags) !void {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(val.ptr)) };
         try call(c.mdb_cursor_put, .{ self.inner, k, v, flags.into() });
     }
     pub inline fn putBatch(self: Self, key: []const u8, batch: anytype, flags: PutFlags) !usize {
         comptime assert(meta.trait.isIndexable(@TypeOf(batch)));
 
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v = [_]c.MDB_val{
-            .{ .mv_size = @sizeOf(meta.Elem(@TypeOf(batch))), .mv_data = @intToPtr(?*c_void, @ptrToInt(&batch[0])) },
+            .{ .mv_size = @sizeOf(meta.Elem(@TypeOf(batch))), .mv_data = @intToPtr(?*anyopaque, @ptrToInt(&batch[0])) },
             .{ .mv_size = mem.len(batch), .mv_data = undefined },
         };
         try call(c.mdb_cursor_put, .{ self.inner, k, &v, @intCast(c_uint, c.MDB_MULTIPLE) | flags.into() });
@@ -579,8 +579,8 @@ pub const Cursor = packed struct {
         return @intCast(usize, v[1].mv_size);
     }
     pub inline fn getOrPut(self: Self, key: []const u8, val: []const u8) !?[]const u8 {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(val.ptr)) };
 
         call(c.mdb_cursor_put, .{ self.inner, k, v, c.MDB_NOOVERWRITE }) catch |err| switch (err) {
             error.AlreadyExists => return @ptrCast([*]u8, v.mv_data)[0..v.mv_size],
@@ -606,7 +606,7 @@ pub const Cursor = packed struct {
         found_existing: []const u8,
     };
     pub inline fn reserve(self: Self, key: []const u8, val_len: usize, flags: ReserveFlags) !ReserveResult {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v = &c.MDB_val{ .mv_size = val_len, .mv_data = null };
 
         call(c.mdb_cursor_put, .{ self.inner, k, v, flags.into() }) catch |err| switch (err) {
@@ -672,24 +672,24 @@ pub const Cursor = packed struct {
         };
     }
     pub inline fn seekToItem(self: Self, key: []const u8, val: []const u8) !void {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(val.ptr)) };
         try call(c.mdb_cursor_get, .{ self.inner, k, v, .MDB_GET_BOTH });
     }
     pub inline fn seekFromItem(self: Self, key: []const u8, val: []const u8) ![]const u8 {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
-        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(val.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
+        var v = &c.MDB_val{ .mv_size = val.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(val.ptr)) };
         try call(c.mdb_cursor_get, .{ self.inner, k, v, c.MDB_GET_BOTH_RANGE });
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
     pub inline fn seekTo(self: Self, key: []const u8) ![]const u8 {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v: c.MDB_val = undefined;
         try call(c.mdb_cursor_get, .{ self.inner, k, &v, c.MDB_SET_KEY });
         return @ptrCast([*]const u8, v.mv_data)[0..v.mv_size];
     }
     pub inline fn seekFrom(self: Self, key: []const u8) !Entry {
-        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*c_void, @ptrToInt(key.ptr)) };
+        var k = &c.MDB_val{ .mv_size = key.len, .mv_data = @intToPtr(?*anyopaque, @ptrToInt(key.ptr)) };
         var v: c.MDB_val = undefined;
         try call(c.mdb_cursor_get, .{ self.inner, k, &v, c.MDB_SET_RANGE });
         return Entry{
