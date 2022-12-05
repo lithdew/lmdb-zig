@@ -9,11 +9,12 @@ pub fn build(b: *Builder) void {
 
     const mode = b.standardReleaseOptions();
 
-    const tests = b.addTest("lmdb.zig");
+    const tests = b.addTestExe("test", "lmdb.zig");
     tests.setTarget(target);
     tests.setBuildMode(mode);
+    tests.install();
     deps.addAllTo(tests);
 
     const test_step = b.step("test", "Run libary tests");
-    test_step.dependOn(&tests.step);
+    test_step.dependOn(&tests.run().step);
 }
