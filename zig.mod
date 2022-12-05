@@ -3,7 +3,7 @@ name: lmdb
 main: lmdb.zig
 dependencies:
   - type: git
-    path: https://git.openldap.org/openldap/openldap
+    path: lmdb
     version: tag-LMDB_0.9.29
     c_include_dirs:
       - libraries/liblmdb
