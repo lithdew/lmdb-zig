@@ -282,27 +282,9 @@ pub const Database = struct {
         duplicate_entries_are_fixed_size: bool = false,
         duplicate_keys_are_integers: bool = false,
         compare_duplicate_keys_in_reverse_order: bool = false,
-        pub inline fn into(self: Self.OpenFlags) c_uint {
-            var flags: c_uint = 0;
-            if (self.compare_keys_in_reverse_order) flags |= c.MDB_REVERSEKEY;
-            if (self.allow_duplicate_keys) flags |= c.MDB_DUPSORT;
-            if (self.keys_are_integers) flags |= c.MDB_INTEGERKEY;
-            if (self.duplicate_entries_are_fixed_size) flags |= c.MDB_DUPFIXED;
-            if (self.duplicate_keys_are_integers) flags |= c.MDB_INTEGERDUP;
-            if (self.compare_duplicate_keys_in_reverse_order) flags |= c.MDB_REVERSEDUP;
-            return flags;
-        }
-    };
-
-    pub const UseFlags = packed struct {
-        compare_keys_in_reverse_order: bool = false,
-        allow_duplicate_keys: bool = false,
-        keys_are_integers: bool = false,
-        duplicate_entries_are_fixed_size: bool = false,
-        duplicate_keys_are_integers: bool = false,
-        compare_duplicate_keys_in_reverse_order: bool = false,
+        /// only use with named database
         create_if_not_exists: bool = false,
-        pub inline fn into(self: Self.UseFlags) c_uint {
+        pub inline fn into(self: @This()) c_uint {
             var flags: c_uint = 0;
             if (self.compare_keys_in_reverse_order) flags |= c.MDB_REVERSEKEY;
             if (self.allow_duplicate_keys) flags |= c.MDB_DUPSORT;
@@ -344,14 +326,9 @@ pub const Transaction = packed struct {
     pub inline fn id(self: Self) usize {
         return @as(usize, @intCast(c.mdb_txn_id(self.inner)));
     }
-    pub inline fn open(self: Self, flags: Database.OpenFlags) !Database {
+    pub inline fn open(self: Self, name: ?[]const u8, flags: Database.OpenFlags) !Database {
         var inner: c.MDB_dbi = 0;
-        try call(c.mdb_dbi_open, .{ self.inner, null, flags.into(), &inner });
-        return Database{ .inner = inner };
-    }
-    pub inline fn use(self: Self, name: []const u8, flags: Database.UseFlags) !Database {
-        var inner: c.MDB_dbi = 0;
-        try call(c.mdb_dbi_open, .{ self.inner, name.ptr, flags.into(), &inner });
+        try call(c.mdb_dbi_open, .{ self.inner, if (name) |s| s.ptr else null, flags.into(), &inner });
         return Database{ .inner = inner };
     }
     pub inline fn cursor(self: Self, db: Database) !Cursor {
@@ -889,7 +866,7 @@ test "Environment.copyTo(): backup environment and check environment integrity" 
         const tx = try env_a.begin(.{});
         errdefer tx.deinit();
 
-        const db = try tx.open(.{});
+        const db = try tx.open(null, .{});
         defer db.close(env_a);
 
         var i: u8 = 0;
@@ -909,7 +886,7 @@ test "Environment.copyTo(): backup environment and check environment integrity" 
         const tx = try env_b.begin(.{});
         defer tx.deinit();
 
-        const db = try tx.open(.{});
+        const db = try tx.open(null, .{});
         defer db.close(env_b);
 
         var i: u8 = 0;
@@ -937,7 +914,7 @@ test "Environment.sync(): manually flush system buffers" {
         const tx = try env.begin(.{});
         errdefer tx.deinit();
 
-        const db = try tx.open(.{});
+        const db = try tx.open(null, .{});
         defer db.close(env);
 
         var i: u8 = 0;
@@ -954,7 +931,7 @@ test "Environment.sync(): manually flush system buffers" {
         const tx = try env.begin(.{});
         defer tx.deinit();
 
-        const db = try tx.open(.{});
+        const db = try tx.open(null, .{});
         defer db.close(env);
 
         var i: u8 = 0;
@@ -977,7 +954,7 @@ test "Transaction: get(), put(), reserve(), delete(), and commit() several entri
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{});
+    const db = try tx.open(null, .{});
     defer db.close(env);
 
     // Transaction.put() / Transaction.get()
@@ -1033,7 +1010,7 @@ test "Transaction: reserve, write, and attempt to reserve again with dont_overwr
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{});
+    const db = try tx.open(null, .{});
     defer db.close(env);
 
     switch (try tx.reserve(db, "hello", "world!".len, .{ .dont_overwrite_key = true })) {
@@ -1062,7 +1039,7 @@ test "Transaction: getOrPut() twice" {
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{});
+    const db = try tx.open(null, .{});
     defer db.close(env);
 
     try testing.expectEqual(@as(?[]const u8, null), try tx.getOrPut(db, "hello", "world"));
@@ -1086,10 +1063,10 @@ test "Transaction: use multiple named databases in a single transaction" {
         const tx = try env.begin(.{});
         errdefer tx.deinit();
 
-        const a = try tx.use("A", .{ .create_if_not_exists = true });
+        const a = try tx.open("A", .{ .create_if_not_exists = true });
         defer a.close(env);
 
-        const b = try tx.use("B", .{ .create_if_not_exists = true });
+        const b = try tx.open("B", .{ .create_if_not_exists = true });
         defer b.close(env);
 
         try tx.put(a, "hello", "this is in A!", .{});
@@ -1102,10 +1079,10 @@ test "Transaction: use multiple named databases in a single transaction" {
         const tx = try env.begin(.{});
         errdefer tx.deinit();
 
-        const a = try tx.use("A", .{});
+        const a = try tx.open("A", .{});
         defer a.close(env);
 
-        const b = try tx.use("B", .{});
+        const b = try tx.open("B", .{});
         defer b.close(env);
 
         try testing.expectEqualStrings("this is in A!", try tx.get(a, "hello"));
@@ -1128,7 +1105,7 @@ test "Transaction: nest transaction inside transaction" {
     const parent = try env.begin(.{});
     errdefer parent.deinit();
 
-    const db = try parent.open(.{});
+    const db = try parent.open(null, .{});
     defer db.close(env);
 
     {
@@ -1176,7 +1153,7 @@ test "Transaction: custom key comparator" {
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{});
+    const db = try tx.open(null, .{});
     defer db.close(env);
 
     const items = [_][]const u8{ "a", "b", "c" };
@@ -1214,7 +1191,7 @@ test "Cursor: move around a database and add / delete some entries" {
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{});
+    const db = try tx.open(null, .{});
     defer db.close(env);
 
     {
@@ -1312,7 +1289,7 @@ test "Cursor: interact with variable-sized items in a database with duplicate ke
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{ .allow_duplicate_keys = true });
+    const db = try tx.open(null, .{ .allow_duplicate_keys = true });
     defer db.close(env);
 
     const expected = comptime .{
@@ -1374,7 +1351,7 @@ test "Cursor: interact with batches of fixed-sized items in a database with dupl
     const tx = try env.begin(.{});
     errdefer tx.deinit();
 
-    const db = try tx.open(.{
+    const db = try tx.open(null, .{
         .allow_duplicate_keys = true,
         .duplicate_entries_are_fixed_size = true,
     });
