@@ -14,6 +14,8 @@ pub fn build(b: *std.Build) void {
     lib.linkLibC();
     lib.addCSourceFiles(&.{ "lmdb/libraries/liblmdb/mdb.c", "lmdb/libraries/liblmdb/midl.c" }, &.{"-fno-sanitize=undefined"});
 
+    b.installArtifact(lib);
+
     const pkg = b.addModule("lmdb", .{
         .source_file = .{ .path = "lmdb.zig" },
     });
