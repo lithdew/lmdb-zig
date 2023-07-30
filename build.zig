@@ -12,8 +12,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     lib.linkLibC();
-    lib.addCSourceFiles(&.{ "lmdb/libraries/liblmdb/mdb.c", "lmdb/libraries/liblmdb/midl.c" }, &.{});
-    // .c_source_flags = &.{ "-fno-sanitize=undefined" },
+    lib.addCSourceFiles(&.{ "lmdb/libraries/liblmdb/mdb.c", "lmdb/libraries/liblmdb/midl.c" }, &.{"-fno-sanitize=undefined"});
 
     const pkg = b.addModule("lmdb", .{
         .source_file = .{ .path = "lmdb.zig" },
