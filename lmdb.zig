@@ -12,6 +12,35 @@ const testing = std.testing;
 const panic = debug.panic;
 const assert = debug.assert;
 
+threadlocal var _addZ_buffer: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
+fn addZ(slice: []const u8) [*:0]const u8 {
+    if (slice.ptr[slice.len] == 0) {
+        return @ptrCast(slice.ptr);
+    }
+
+    @memcpy(_addZ_buffer[0..slice.len], slice);
+    _addZ_buffer[slice.len] = 0;
+    return @ptrCast(&_addZ_buffer);
+}
+
+// functions std.meta.trait that are no longer there
+fn is(comptime expected: std.meta.Tag(std.builtin.Type), comptime T: type) bool {
+    const actual = std.meta.activeTag(@typeInfo(T));
+    return expected == actual;
+}
+fn isTuple(comptime T: type) bool {
+    return is(.Struct, T) and @typeInfo(T).Struct.is_tuple;
+}
+fn isIndexable(comptime T: type) bool {
+    if (is(.Pointer, T)) {
+        if (@typeInfo(T).Pointer.size == .One) {
+            return (is(.Array, meta.Child(T)));
+        }
+        return true;
+    }
+    return is(.Array, T) or is(.Vector, T) or isTuple(T);
+}
+
 pub const Environment = packed struct {
     pub const Statistics = struct {
         page_size: usize,
@@ -84,17 +113,7 @@ pub const Environment = packed struct {
             try call(c.mdb_env_set_maxdbs, .{ inner, @as(c_uint, @intCast(max_num_dbs)) });
         }
 
-        if (!mem.endsWith(u8, env_path, &[_]u8{0})) {
-            assert(env_path.len + 1 <= fs.MAX_PATH_BYTES);
-
-            var fixed_path: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
-            @memcpy(fixed_path[0..env_path.len], env_path);
-            fixed_path[env_path.len] = 0;
-
-            try call(c.mdb_env_open, .{ inner, fixed_path[0 .. env_path.len + 1].ptr, flags.into(), flags.mode });
-        } else {
-            try call(c.mdb_env_open, .{ inner, env_path.ptr, flags.into(), flags.mode });
-        }
+        try call(c.mdb_env_open, .{ inner, addZ(env_path), flags.into(), flags.mode });
 
         return Self{ .inner = inner };
     }
@@ -111,17 +130,7 @@ pub const Environment = packed struct {
         }
     };
     pub inline fn copyTo(self: Self, backup_path: []const u8, flags: CopyFlags) !void {
-        if (!mem.endsWith(u8, backup_path, &[_]u8{0})) {
-            assert(backup_path.len + 1 <= fs.MAX_PATH_BYTES);
-
-            var fixed_path: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
-            @memcpy(fixed_path[0..backup_path.len], backup_path);
-            fixed_path[backup_path.len] = 0;
-
-            try call(c.mdb_env_copy2, .{ self.inner, fixed_path[0 .. backup_path.len + 1].ptr, flags.into() });
-        } else {
-            try call(c.mdb_env_copy2, .{ self.inner, backup_path.ptr, flags.into() });
-        }
+        try call(c.mdb_env_copy2, .{ self.inner, addZ(backup_path), flags.into() });
     }
     pub inline fn pipeTo(self: Self, fd_handle: os.fd_t, flags: CopyFlags) !void {
         try call(c.mdb_env_copyfd2, .{ self.inner, fd_handle, flags.into() });
@@ -535,30 +544,11 @@ pub const Cursor = packed struct {
         var v = c.MDB_val{ .mv_size = val.len, .mv_data = @constCast(val.ptr) };
         try call(c.mdb_cursor_put, .{ self.inner, &k, &v, flags.into() });
     }
-
-    // functions std.meta.trait that are no longer there
-    fn is(comptime expected: std.meta.Tag(std.builtin.Type), comptime T: type) bool {
-        const actual = std.meta.activeTag(@typeInfo(T));
-        return expected == actual;
+    pub inline fn putItem(self: Self, key: []const u8, value: anytype, flags: PutFlags) !usize {
+        var k = c.MDB_val{ .mv_size = key.len, .mv_data = @constCast(key.ptr) };
+        var v = c.MDB_val{ .mv_size = @sizeOf(@TypeOf(value)), .mv_data = @as(*anyopaque, @constCast(&value)) };
+        try call(c.mdb_cursor_put, .{ self.inner, &k, &v, flags.into() });
     }
-    fn isTuple(comptime T: type) bool {
-        return is(.Struct, T) and @typeInfo(T).Struct.is_tuple;
-    }
-    fn isIndexable(comptime T: type) bool {
-        if (is(.Pointer, T)) {
-            if (@typeInfo(T).Pointer.size == .One) {
-                return (is(.Array, meta.Child(T)));
-            }
-            return true;
-        }
-        return is(.Array, T) or is(.Vector, T) or isTuple(T);
-    }
-
-    // pub inline fn putItem(self: Self, key: []const u8, value: anytype, flags: PutFlags) !usize {
-    //     var k = c.MDB_val{ .mv_size = key.len, .mv_data = @constCast(key.ptr) };
-    //     var v = c.MDB_val{ .mv_size = @sizeOf(@TypeOf(value)), .mv_data = @as(*anyopaque, @constCast(&value)) };
-    //     try call(c.mdb_cursor_put, .{ self.inner, &k, &v, flags.into() });
-    // }
     /// Insert multiple values for a key
     /// value must be contiguous in memory, like []Foo
     pub inline fn putBatch(self: Self, key: []const u8, batch: anytype, flags: PutFlags) !usize {
