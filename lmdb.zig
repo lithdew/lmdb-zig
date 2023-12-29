@@ -88,7 +88,7 @@ pub const Environment = packed struct {
             assert(env_path.len + 1 <= fs.MAX_PATH_BYTES);
 
             var fixed_path: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
-            mem.copy(u8, &fixed_path, env_path);
+            @memcpy(fixed_path[0..env_path.len], env_path);
             fixed_path[env_path.len] = 0;
 
             try call(c.mdb_env_open, .{ inner, fixed_path[0 .. env_path.len + 1].ptr, flags.into(), flags.mode });
@@ -115,7 +115,7 @@ pub const Environment = packed struct {
             assert(backup_path.len + 1 <= fs.MAX_PATH_BYTES);
 
             var fixed_path: [fs.MAX_PATH_BYTES + 1]u8 = undefined;
-            mem.copy(u8, &fixed_path, backup_path);
+            @memcpy(fixed_path[0..backup_path.len], backup_path);
             fixed_path[backup_path.len] = 0;
 
             try call(c.mdb_env_copy2, .{ self.inner, fixed_path[0 .. backup_path.len + 1].ptr, flags.into() });
@@ -435,7 +435,7 @@ pub const Transaction = packed struct {
     }
     pub inline fn del(self: Self, db: Database, key: []const u8, op: union(enum) { key: void, item: []const u8 }) !void {
         var k = c.MDB_val{ .mv_size = key.len, .mv_data = @constCast(key.ptr) };
-        var v: ?*c.MDB_val = switch (op) {
+        const v: ?*c.MDB_val = switch (op) {
             .key => null,
             .item => |item| &c.MDB_val{
                 .mv_size = item.len,
@@ -535,6 +535,25 @@ pub const Cursor = packed struct {
         var v = c.MDB_val{ .mv_size = val.len, .mv_data = @constCast(val.ptr) };
         try call(c.mdb_cursor_put, .{ self.inner, &k, &v, flags.into() });
     }
+
+    // functions std.meta.trait that are no longer there
+    fn is(comptime expected: std.meta.Tag(std.builtin.Type), comptime T: type) bool {
+        const actual = std.meta.activeTag(@typeInfo(T));
+        return expected == actual;
+    }
+    fn isTuple(comptime T: type) bool {
+        return is(.Struct, T) and @typeInfo(T).Struct.is_tuple;
+    }
+    fn isIndexable(comptime T: type) bool {
+        if (is(.Pointer, T)) {
+            if (@typeInfo(T).Pointer.size == .One) {
+                return (is(.Array, meta.Child(T)));
+            }
+            return true;
+        }
+        return is(.Array, T) or is(.Vector, T) or isTuple(T);
+    }
+
     // pub inline fn putItem(self: Self, key: []const u8, value: anytype, flags: PutFlags) !usize {
     //     var k = c.MDB_val{ .mv_size = key.len, .mv_data = @constCast(key.ptr) };
     //     var v = c.MDB_val{ .mv_size = @sizeOf(@TypeOf(value)), .mv_data = @as(*anyopaque, @constCast(&value)) };
@@ -543,7 +562,7 @@ pub const Cursor = packed struct {
     /// Insert multiple values for a key
     /// value must be contiguous in memory, like []Foo
     pub inline fn putBatch(self: Self, key: []const u8, batch: anytype, flags: PutFlags) !usize {
-        comptime assert(meta.trait.isIndexable(@TypeOf(batch)));
+        comptime assert(isIndexable(@TypeOf(batch)));
 
         var k = c.MDB_val{ .mv_size = key.len, .mv_data = @constCast(key.ptr) };
         var v = [_]c.MDB_val{ .{ .mv_size = @sizeOf(meta.Elem(@TypeOf(batch))), .mv_data = &batch[0] }, .{ .mv_size = batch.len, .mv_data = undefined } };
@@ -797,7 +816,7 @@ test "Environment.init() / Environment.deinit(): query environment stats, flags,
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{
         .use_writable_memory_map = true,
@@ -856,8 +875,8 @@ test "Environment.copyTo(): backup environment and check environment integrity" 
     var buf_a: [fs.MAX_PATH_BYTES]u8 = undefined;
     var buf_b: [fs.MAX_PATH_BYTES]u8 = undefined;
 
-    var path_a = try tmp_a.dir.realpath("./", &buf_a);
-    var path_b = try tmp_b.dir.realpath("./", &buf_b);
+    const path_a = try tmp_a.dir.realpath("./", &buf_a);
+    const path_b = try tmp_b.dir.realpath("./", &buf_b);
 
     const env_a = try Environment.init(path_a, .{});
     {
@@ -901,7 +920,7 @@ test "Environment.sync(): manually flush system buffers" {
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{
         .dont_sync = true,
@@ -946,7 +965,7 @@ test "Transaction: get(), put(), reserve(), delete(), and commit() several entri
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{});
     defer env.deinit();
@@ -978,7 +997,7 @@ test "Transaction: get(), put(), reserve(), delete(), and commit() several entri
     {
         const result = try tx.reserve(db, "hello", "new_value".len, .{});
         try testing.expectEqual("new_value".len, result.successful.len);
-        mem.copy(u8, result.successful, "new_value");
+        @memcpy(result.successful, "new_value");
     }
     try testing.expectEqualStrings("new_value", try tx.get(db, "hello"));
 
@@ -1002,7 +1021,7 @@ test "Transaction: reserve, write, and attempt to reserve again with dont_overwr
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{});
     defer env.deinit();
@@ -1015,7 +1034,7 @@ test "Transaction: reserve, write, and attempt to reserve again with dont_overwr
 
     switch (try tx.reserve(db, "hello", "world!".len, .{ .dont_overwrite_key = true })) {
         .found_existing => try testing.expect(false),
-        .successful => |dst| std.mem.copy(u8, dst, "world!"),
+        .successful => |dst| @memcpy(dst, "world!"),
     }
 
     switch (try tx.reserve(db, "hello", "world!".len, .{ .dont_overwrite_key = true })) {
@@ -1031,7 +1050,7 @@ test "Transaction: getOrPut() twice" {
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{});
     defer env.deinit();
@@ -1054,7 +1073,7 @@ test "Transaction: use multiple named databases in a single transaction" {
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{ .max_num_dbs = 2 });
     defer env.deinit();
@@ -1097,7 +1116,7 @@ test "Transaction: nest transaction inside transaction" {
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{});
     defer env.deinit();
@@ -1145,7 +1164,7 @@ test "Transaction: custom key comparator" {
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{ .max_num_dbs = 2 });
     defer env.deinit();
@@ -1183,7 +1202,7 @@ test "Cursor: move around a database and add / delete some entries" {
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{});
     defer env.deinit();
@@ -1256,7 +1275,7 @@ test "Cursor: move around a database and add / delete some entries" {
             try cursor.updateInPlace(item, "???");
             try testing.expectEqualStrings("???", (try cursor.current()).?.val);
 
-            mem.copy(u8, try cursor.reserveInPlace(item, item.len), item);
+            @memcpy(try cursor.reserveInPlace(item, item.len), item);
             try testing.expectEqualStrings(item, (try cursor.current()).?.val);
         }
 
@@ -1281,7 +1300,7 @@ test "Cursor: interact with variable-sized items in a database with duplicate ke
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{ .max_num_dbs = 1 });
     defer env.deinit();
@@ -1343,7 +1362,7 @@ test "Cursor: interact with batches of fixed-sized items in a database with dupl
     defer tmp.cleanup();
 
     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-    var path = try tmp.dir.realpath("./", &buf);
+    const path = try tmp.dir.realpath("./", &buf);
 
     const env = try Environment.init(path, .{ .max_num_dbs = 1 });
     defer env.deinit();

@@ -12,7 +12,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     lib.linkLibC();
-    lib.addCSourceFiles(&.{ "lmdb/libraries/liblmdb/mdb.c", "lmdb/libraries/liblmdb/midl.c" }, &.{"-fno-sanitize=undefined"});
+    lib.addCSourceFiles(.{ .files = &.{ "lmdb/libraries/liblmdb/mdb.c", "lmdb/libraries/liblmdb/midl.c" }, .flags = &.{"-fno-sanitize=undefined"} });
 
     b.installArtifact(lib);
 
@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tests.addIncludePath("lmdb/libraries/liblmdb");
+    tests.addIncludePath(.{ .path = "lmdb/libraries/liblmdb" });
     tests.linkLibrary(lib);
 
     b.installArtifact(tests);
