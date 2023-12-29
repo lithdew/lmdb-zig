@@ -15,6 +15,7 @@ Refer to the 12 extensive unit tests provided [here](lmdb.zig#L874) for usage in
 
 Built and tested against Zig's master branch over all possible optimization modes.
 
+For Zig 0.11, see the branch `0.11`.
 
 ## Motivation
 
