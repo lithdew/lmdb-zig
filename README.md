@@ -15,6 +15,7 @@ Refer to the 12 extensive unit tests provided [here](lmdb.zig#L874) for usage in
 
 Built and tested against Zig's master branch over all possible optimization modes.
 
+For Zig 0.11, see the branch `0.11`.
 
 ## Motivation
 
@@ -24,19 +25,16 @@ As a result, extensive effort was put into exposing and testing as many differen
 
 ## Setup
 
-These bindings were built with first-class support for the [zigmod](https://github.com/nektro/zigmod) package manager.
+1. Add this repo as git submodule
+2. Add the following code to your `build.zig`
 
-To incorporate these bindings into your project, include the following into your project's `zig.mod`:
-
-```yml
-- type: git
-  path: https://github.com/lithdew/lmdb-zig
-```
-
-Afterwards, run:
-
-```shell
-zigmod fetch
+```zig
+pub fn build(b: *std.Build) void {
+    ...
+    const dep_lmdb = b.anonymousDependency("lib/lmdb-zig", @import("lib/lmdb-zig/build.zig"), .{});
+    exe.linkLibrary(dep_lmdb.artifact("lmdb"));
+    exe.addModule("lmdb", dep_lmdb.module("lmdb"));
+}
 ```
 
 ## Status
